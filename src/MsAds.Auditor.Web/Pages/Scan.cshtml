@@ -1,0 +1,241 @@
+@page
+@model ScanModel
+@{
+    ViewData["Title"] = "Account health scan";
+    var scan = Model.Scan;
+}
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="notice notice--error" role="alert">
+        <span class="notice__icon" aria-hidden="true">&#9940;</span>
+        <div class="notice__body">@Model.ErrorMessage</div>
+    </div>
+}
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Scan accounts</h2>
+            <p class="card__note">
+                A quick direction-of-travel reading across every account, so the ones worth a full audit
+                stand out. It reads account totals only — far lighter than a full report — then you can
+                drill into any account for the complete analysis.
+            </p>
+        </div>
+        <span class="read-only-note"><span aria-hidden="true">&#128274;</span> Read-only</span>
+    </div>
+    <div class="card__body">
+        <form method="post" data-progress>
+            <div class="filters" style="margin-bottom:1rem">
+                <div class="field">
+                    <label for="scan-period">Reporting period</label>
+                    <select id="scan-period" name="Period">
+                        @foreach (var option in Enum.GetValues<ReportingPeriod>())
+                        {
+                            <option value="@option" selected="@(option == Model.Period)">@option.DisplayName()</option>
+                        }
+                    </select>
+                    <span class="hint">Compared with the preceding equivalent period.</span>
+                </div>
+                <button type="submit" class="btn btn--primary" data-submit-progress>
+                    <span aria-hidden="true">&#9654;</span> Scan selected accounts
+                </button>
+                <span class="count-note" data-submit-status role="status" aria-live="polite"></span>
+            </div>
+
+            <fieldset style="border:0;padding:0;margin:0">
+                <legend class="label" style="padding:0">Accounts</legend>
+                <p class="hint" style="margin:.1rem 0 .5rem">
+                    All @Model.AvailableAccounts.Count account(s) are selected. Untick any you want to leave
+                    out — accounts are queried a few at a time to stay inside Microsoft's API limits, so a
+                    shorter list finishes sooner.
+                </p>
+                <div class="toolbar" style="margin-bottom:.5rem">
+                    <button type="button" class="btn btn--secondary btn--small" data-select-all="scan-accounts">Select all</button>
+                    <button type="button" class="btn btn--secondary btn--small" data-select-none="scan-accounts">Select none</button>
+                </div>
+                <div class="checks" id="scan-accounts">
+                    @foreach (var account in Model.AvailableAccounts)
+                    {
+                        <label class="check">
+                            <input type="checkbox" name="SelectedAccountIds" value="@account.AccountId"
+                                   checked="@(Model.SelectedAccountIds.Contains(account.AccountId))" />
+                            @account.AccountName
+                        </label>
+                    }
+                </div>
+            </fieldset>
+        </form>
+    </div>
+</div>
+
+@if (scan is null)
+{
+    <div class="card">
+        <div class="card__body">
+            <div class="empty">
+                <span class="empty__icon" aria-hidden="true">&#9783;</span>
+                <h2>No scan yet</h2>
+                <p>Run a scan to see which accounts moved, and which way, over the selected period.</p>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    var formatter = scan.Formatter;
+
+    <h2 style="margin:1.5rem 0 .6rem">
+        Results — @scan.Period.Current.Start.ToString("d MMM") to @scan.Period.Current.End.ToString("d MMM yyyy")
+    </h2>
+    <p class="count-note" style="margin-bottom:.75rem">
+        @scan.Accounts.Count account(s) scanned in @scan.Duration.TotalSeconds.ToString("N1")s, compared with
+        the preceding @scan.Period.Current.Days days. Direction is judged on efficiency, not on spend:
+        an account spending more is not thereby doing worse, or better.
+    </p>
+
+    @if (scan.HasMixedTimeZones)
+    {
+        <div class="notice notice--warning" role="note">
+            <span class="notice__icon" aria-hidden="true">&#9888;</span>
+            <div class="notice__body">
+                <span class="notice__title">These accounts do not share a reporting time zone</span>
+                One set of dates is used for the whole scan, so for accounts in a different time zone the
+                window is shifted by up to a day against their own calendar. Audit an individual account
+                for figures resolved in its own time zone.
+            </div>
+        </div>
+    }
+
+    <div class="tiles">
+        <div class="tile">
+            <span class="tile__label">Needs attention</span>
+            <span class="tile__value">@(scan.CountOf(HealthVerdict.Declining) + scan.CountOf(HealthVerdict.NotDelivering))</span>
+            <span class="tile__previous">declining or stopped delivering</span>
+        </div>
+        <div class="tile">
+            <span class="tile__label">Stable</span>
+            <span class="tile__value">@scan.CountOf(HealthVerdict.Stable)</span>
+            <span class="tile__previous">within the change threshold</span>
+        </div>
+        <div class="tile">
+            <span class="tile__label">Improving</span>
+            <span class="tile__value">@scan.CountOf(HealthVerdict.Improving)</span>
+            <span class="tile__previous">efficiency moved favourably</span>
+        </div>
+        <div class="tile">
+            <span class="tile__label">Combined spend</span>
+            @if (scan.HasMixedCurrencies)
+            {
+                <span class="tile__value tile__value--unavailable">Mixed currencies</span>
+                <span class="tile__previous">accounts report in different currencies, so totals are not added</span>
+            }
+            else
+            {
+                <span class="tile__value">@formatter.FormatCurrency(scan.TotalSpend)</span>
+                <span class="tile__previous">was @formatter.FormatCurrency(scan.PreviousTotalSpend)</span>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <h2>Accounts</h2>
+            <span class="count-note">Ordered with the accounts needing attention first</span>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data" data-sortable>
+                <caption class="visually-hidden">
+                    Direction of travel per account for @scan.Period.Current.ToString().
+                </caption>
+                <thead>
+                    <tr>
+                        <th class="sortable col-name" aria-sort="none" scope="col"><button type="button">Account <span class="arrow" aria-hidden="true">&#8645;</span></button></th>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Direction <span class="arrow" aria-hidden="true">&#8645;</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Spend <span class="arrow" aria-hidden="true">&#8645;</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Clicks <span class="arrow" aria-hidden="true">&#8645;</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Conv. <span class="arrow" aria-hidden="true">&#8645;</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">CPA <span class="arrow" aria-hidden="true">&#8645;</span></button></th>
+                        <th scope="col">Daily spend</th>
+                        <th class="col-reason" scope="col">What moved</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var health in scan.InAttentionOrder)
+                {
+                    var rowFormatter = health.Formatter;
+                    var spark = Sparkline.FromDaily(health.Daily, MetricKey.Spend);
+
+                    <tr>
+                        <td class="wrap col-name">
+                            <strong>@health.Account.AccountName</strong>
+                            <span class="sub">ID @health.Account.AccountId@(health.Account.CurrencyCode is null ? "" : " · " + health.Account.CurrencyCode)</span>
+                        </td>
+                        <td data-sort="@health.SortWeight">
+                            <span class="badge badge--@ViewHelpers.VerdictClass(health.Verdict)">
+                                <span aria-hidden="true">@ViewHelpers.VerdictIcon(health.Verdict)</span>
+                                @ViewHelpers.VerdictLabel(health.Verdict)
+                            </span>
+                            @{
+                                // Only meaningful where a direction was actually judged; a dormant or
+                                // stopped account has no conversion signal either way.
+                                var judged = health.Verdict is HealthVerdict.Improving
+                                    or HealthVerdict.Declining or HealthVerdict.Stable;
+                            }
+                            @if (judged && !health.BasedOnConversions)
+                            {
+                                <span class="sub">cost and traffic only</span>
+                            }
+                        </td>
+                        @foreach (var metric in health.KeyMetrics)
+                        {
+                            <td class="num" data-sort="@ViewHelpers.SortValue(metric.Delta.Current)">
+                                @rowFormatter.Format(metric.Delta.Current, metric.Key)
+                                @if (metric.Delta.HasComparison && metric.Delta.Kind != ChangeKind.NoChange)
+                                {
+                                    <span class="sub">@rowFormatter.FormatChange(metric.Delta)</span>
+                                }
+                            </td>
+                        }
+                        <td>
+                            @if (spark.HasData)
+                            {
+                                <svg class="tile__spark" style="width:110px" viewBox="@spark.ViewBox" preserveAspectRatio="none"
+                                     role="img" aria-label="Daily spend trend for @health.Account.AccountName">
+                                    <path d="@spark.Path" />
+                                </svg>
+                            }
+                            else
+                            {
+                                <span class="sub">no daily data</span>
+                            }
+                        </td>
+                        <td class="wrap col-reason">@health.Reason</td>
+                        <td>
+                            <a class="btn btn--secondary btn--small" asp-page="/Index"
+                               asp-route-account="@health.Account.AccountId" asp-fragment="generate">Audit</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (scan.FailedCount > 0)
+        {
+            <div class="card__body">
+                <div class="notice notice--error" role="alert">
+                    <span class="notice__icon" aria-hidden="true">&#9940;</span>
+                    <div class="notice__body">
+                        <span class="notice__title">@scan.FailedCount account(s) could not be scanned</span>
+                        Their rows show as unknown. This is a gap in the scan, not a clean result for those
+                        accounts.
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}

@@ -1,0 +1,30 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+*.user
+*.suo
+
+# IDE
+.vs/
+.vscode/
+.idea/
+*.swp
+
+# Credentials and local state — never commit these.
+# The AI API key and the Microsoft Advertising refresh token are stored encrypted
+# under the user's local application data, outside this repository, and user
+# secrets live in ~/.microsoft/usersecrets. Nothing here should ever hold one.
+secrets.json
+*.pfx
+*.pem
+.env
+.env.*
+appsettings.Local.json
+appsettings.*.Local.json
+
+# OS
+.DS_Store
+Thumbs.db

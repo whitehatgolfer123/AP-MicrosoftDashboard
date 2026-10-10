@@ -1,0 +1,22 @@
+@model bool
+<div class="card">
+    <div class="card__body">
+        <div class="empty">
+            <span class="empty__icon" aria-hidden="true">▣</span>
+            @if (Model)
+            {
+                <h2>That report is no longer available</h2>
+                <p>
+                    Reports are held in memory only and are cleared when the application restarts, so that
+                    client performance data is not written to disk. Generate the report again to continue.
+                </p>
+            }
+            else
+            {
+                <h2>No report yet</h2>
+                <p>Choose an account and a reporting period on the dashboard, then generate a report.</p>
+            }
+            <a class="btn btn--primary" asp-page="/Index" asp-fragment="generate">Go to the dashboard</a>
+        </div>
+    </div>
+</div>

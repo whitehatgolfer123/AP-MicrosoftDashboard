@@ -1,0 +1,337 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Dashboard";
+    var report = Model.Report;
+}
+
+@if (Model.Outcome is { Succeeded: false } failure)
+{
+    <div class="notice notice--error" role="alert">
+        <span class="notice__icon" aria-hidden="true">⛔</span>
+        <div class="notice__body">
+            <span class="notice__title">@failure.ErrorTitle</span>
+            @failure.ErrorDetail
+            @if (failure.ErrorRemedy is not null)
+            {
+                <div style="margin-top:.35rem"><strong>What to do:</strong> @failure.ErrorRemedy</div>
+            }
+            @if (failure.CanRetry)
+            {
+                <div style="margin-top:.5rem">
+                    <button type="submit" form="generate-form" class="btn btn--secondary btn--small">Try again</button>
+                </div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card" id="generate">
+    <div class="card__head">
+        <div>
+            <h2>Reporting controls</h2>
+            <p class="card__note">
+                Data source: <strong>@Model.SourceName</strong>. Dates are resolved in the selected account's own
+                reporting time zone.
+            </p>
+        </div>
+        <span class="read-only-note"><span aria-hidden="true">🔒</span> Read-only: generating a report changes nothing in the account</span>
+    </div>
+    <div class="card__body">
+        @if (Model.AccountListError is not null)
+        {
+            <div class="notice notice--warning" role="alert">
+                <span class="notice__icon" aria-hidden="true">⚠</span>
+                <div class="notice__body">@Model.AccountListError</div>
+            </div>
+        }
+
+        <form method="post" id="generate-form" data-progress data-source-name="@Model.SourceName">
+            <div class="controls">
+                <div class="field">
+                    <label for="account">Client account</label>
+                    @if (Model.AccessibleAccounts.Count > 0)
+                    {
+                        <select id="account" name="Form.AccountId">
+                            <option value="">— Select an account —</option>
+                            @foreach (var account in Model.AccessibleAccounts)
+                            {
+                                <option value="@account.AccountId">@account.DisplayLabel</option>
+                            }
+                        </select>
+                        <span class="hint">Or type an ID below if the account is not listed.</span>
+                    }
+                    else
+                    {
+                        <input type="text" id="account" name="Form.AccountId" value="@Model.Form.AccountId" placeholder="e.g. 140100001" inputmode="numeric" />
+                        <span class="hint">An advertising account ID, not a manager (customer) ID.</span>
+                    }
+                </div>
+
+                @if (Model.AccessibleAccounts.Count > 0)
+                {
+                    <div class="field">
+                        <label for="account-manual">Or enter an account ID</label>
+                        <input type="text" id="account-manual" name="Form.AccountId" placeholder="e.g. 140100001" inputmode="numeric" />
+                        <span class="hint">Overrides the selection above. Validated before any report is requested.</span>
+                    </div>
+                }
+
+                <div class="field">
+                    <label for="period">Reporting period</label>
+                    <select id="period" name="Form.Period">
+                        @foreach (var option in Enum.GetValues<ReportingPeriod>())
+                        {
+                            <option value="@option" selected="@(option == Model.Form.Period)">@option.DisplayName()</option>
+                        }
+                    </select>
+                    <span class="hint">Compared with the preceding equivalent period.</span>
+                </div>
+
+                <div class="field">
+                    <span class="label">Period options</span>
+                    <label class="check">
+                        <input type="checkbox" id="Form_CompareWithPreviousPeriod" name="Form.CompareWithPreviousPeriod" value="true" @(Model.Form.CompareWithPreviousPeriod ? "checked" : null) /><input type="hidden" name="Form.CompareWithPreviousPeriod" value="false" />
+                        Compare with previous period
+                    </label>
+                    <label class="check">
+                        <input type="checkbox" id="Form_ExcludeToday" name="Form.ExcludeToday" value="true" @(Model.Form.ExcludeToday ? "checked" : null) /><input type="hidden" name="Form.ExcludeToday" value="false" />
+                        Exclude today (incomplete)
+                    </label>
+                </div>
+            </div>
+
+            <fieldset style="border:0;padding:1rem 0 0;margin:0">
+                <legend class="label" style="padding:0">Analyses to run</legend>
+                <p class="hint" style="margin:.1rem 0 .5rem">
+                    Each analysis is a separate report request, so deselecting one makes the report faster.
+                </p>
+                <div class="checks">
+                    <label class="check"><input type="checkbox" id="Form_AnalyseCampaigns" name="Form.AnalyseCampaigns" value="true" @(Model.Form.AnalyseCampaigns ? "checked" : null) /><input type="hidden" name="Form.AnalyseCampaigns" value="false" /> Campaign performance</label>
+                    <label class="check"><input type="checkbox" id="Form_AnalyseSearchTerms" name="Form.AnalyseSearchTerms" value="true" @(Model.Form.AnalyseSearchTerms ? "checked" : null) /><input type="hidden" name="Form.AnalyseSearchTerms" value="false" /> Search term waste</label>
+                    <label class="check"><input type="checkbox" id="Form_AnalyseKeywords" name="Form.AnalyseKeywords" value="true" @(Model.Form.AnalyseKeywords ? "checked" : null) /><input type="hidden" name="Form.AnalyseKeywords" value="false" /> Keyword performance</label>
+                    <label class="check"><input type="checkbox" id="Form_AnalyseChangeHistory" name="Form.AnalyseChangeHistory" value="true" @(Model.Form.AnalyseChangeHistory ? "checked" : null) /><input type="hidden" name="Form.AnalyseChangeHistory" value="false" /> Change history</label>
+                    <label class="check"><input type="checkbox" id="Form_AnalyseNegativeKeywordConflicts" name="Form.AnalyseNegativeKeywordConflicts" value="true" @(Model.Form.AnalyseNegativeKeywordConflicts ? "checked" : null) /><input type="hidden" name="Form.AnalyseNegativeKeywordConflicts" value="false" /> Negative keyword conflicts</label>
+                </div>
+            </fieldset>
+
+            <div class="toolbar" style="margin-top:1rem">
+                <button type="submit" class="btn btn--primary" data-submit-progress>
+                    <span aria-hidden="true">▶</span> Generate Report
+                </button>
+                <a class="btn btn--secondary" asp-page="/Settings">Adjust thresholds</a>
+                <span class="count-note" data-submit-status role="status" aria-live="polite"></span>
+            </div>
+        </form>
+    </div>
+</div>
+
+@if (report is null)
+{
+    @await Html.PartialAsync("_NoReport", Model.ReportExpired)
+}
+else
+{
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Executive summary</h2>
+                <p class="card__note">
+                    Generated from the calculated figures in this report only. No AI service is involved in
+                    calculating a metric or deciding whether a threshold was crossed.
+                </p>
+            </div>
+            <div class="toolbar">
+                <a class="btn btn--secondary btn--small" asp-page="/Recommendations" asp-route-report="@Model.Report?.ReportId">
+                    All @report.Recommendations.Findings.Count recommendation(s)
+                </a>
+            </div>
+        </div>
+        <div class="card__body">
+            <p class="summary__headline">@report.ExecutiveSummary.Headline</p>
+
+            @if (report.ExecutiveSummary.Points.Count > 0)
+            {
+                <ul class="summary__points">
+                    @foreach (var point in report.ExecutiveSummary.Points)
+                    {
+                        <li>@point</li>
+                    }
+                </ul>
+            }
+
+            @if (report.ExecutiveSummary.Caveats.Count > 0)
+            {
+                <div class="summary__caveats">
+                    <strong>Read alongside these caveats:</strong>
+                    <ul>
+                        @foreach (var caveat in report.ExecutiveSummary.Caveats)
+                        {
+                            <li>@caveat</li>
+                        }
+                    </ul>
+                </div>
+            }
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>AI commentary <span class="badge badge--muted">Optional</span></h2>
+                <p class="card__note">
+                    An optional written commentary on the findings above. It is given only the figures
+                    already calculated on this page and told to work solely from them — it never
+                    recalculates anything and cannot change a single number in this report.
+                </p>
+            </div>
+            @if (Model.AiAvailable && Model.Narrative is null)
+            {
+                <form method="post" asp-page-handler="Narrate" asp-route-report="@report.ReportId" data-progress>
+                    <button type="submit" class="btn btn--secondary btn--small" data-submit-progress>
+                        <span aria-hidden="true">&#10024;</span> Write commentary
+                    </button>
+                </form>
+            }
+        </div>
+        <div class="card__body">
+            @if (!Model.AiAvailable)
+            {
+                <div class="notice notice--info" role="note">
+                    <span class="notice__icon" aria-hidden="true">&#8505;</span>
+                    <div class="notice__body">
+                        <span class="notice__title">Switched off — and the audit does not need it</span>
+                        @Model.AiDisabledReason
+                        <a asp-page="/Settings">Add a key in Settings</a> if you want it.
+                    </div>
+                </div>
+            }
+            else if (Model.Narrative is null)
+            {
+                <p class="count-note">
+                    Not written yet. Each one is a paid call to @Model.AiProviderName using
+                    <strong>@Model.AiModel</strong>, so it is only produced when you ask for it —
+                    nothing is spent generating reports.
+                </p>
+            }
+            else if (Model.Narrative.Failed)
+            {
+                <div class="notice notice--warning" role="alert">
+                    <span class="notice__icon" aria-hidden="true">&#9888;</span>
+                    <div class="notice__body">@Model.Narrative.Text</div>
+                </div>
+            }
+            else
+            {
+                foreach (var paragraph in Model.Narrative.Text.Split('\n', StringSplitOptions.RemoveEmptyEntries))
+                {
+                    <p>@paragraph.Trim()</p>
+                }
+
+                <p class="count-note" style="margin-top:.75rem">
+                    Written by @Model.Narrative.Model ·
+                    @Model.Narrative.InputTokens tokens in, @Model.Narrative.OutputTokens out ·
+                    @if (Model.Narrative.EstimatedCostUsd is { } cost)
+                    {
+                        <span>about $@cost.ToString("N4") ·</span>
+                    }
+                    @Model.Narrative.Duration.TotalSeconds.ToString("N1")s.
+                    The figures above it are calculated, not written by a model.
+                </p>
+            }
+        </div>
+    </div>
+
+    <h2 style="margin:1.5rem 0 .6rem">Performance summary</h2>
+    <p class="count-note" style="margin-bottom:.75rem">
+        @report.DateRangeLabel (@report.Period.Current.Days days)
+        @if (report.Period.Previous is not null)
+        {
+            <span>compared with @report.ComparisonLabel.</span>
+        }
+        else
+        {
+            <span>— no comparison period was requested.</span>
+        }
+        An increase is not assumed to be good: each change is judged against whether a rise in that
+        particular metric is desirable.
+    </p>
+
+    @await Html.PartialAsync("_StatTiles", report)
+
+    @if (Model.Charts.Count > 0)
+    {
+        <h2 style="margin:1.5rem 0 .6rem">Performance trends</h2>
+        <p class="count-note" style="margin-bottom:.75rem">
+            Both periods are plotted by day position because they cover different dates; hover a chart to see
+            each day's actual date and value. A gap in a line means the metric could not be calculated that
+            day, not that it was zero.
+        </p>
+        <div class="grid grid--2">
+            @foreach (var chart in Model.Charts)
+            {
+                @await Html.PartialAsync("_TrendChart", chart)
+            }
+        </div>
+    }
+
+    <div class="grid grid--2">
+        <div class="card">
+            <div class="card__head"><h2>Report details</h2></div>
+            <div class="card__body">
+                <dl class="kv">
+                    <dt>Account</dt><dd>@report.Account.AccountName</dd>
+                    <dt>Account ID</dt><dd>@report.Account.AccountId</dd>
+                    <dt>Manager (customer) ID</dt><dd>@report.Account.CustomerId</dd>
+                    <dt>Reporting currency</dt><dd>@report.Formatter.CurrencyCode</dd>
+                    <dt>Reporting time zone</dt><dd>@report.Period.TimeZoneId</dd>
+                    <dt>Current period</dt><dd>@report.DateRangeLabel</dd>
+                    <dt>Comparison period</dt><dd>@report.ComparisonLabel</dd>
+                    <dt>Today excluded</dt><dd>@(report.Period.CurrentDayExcluded ? "Yes" : "No")</dd>
+                    <dt>Data source</dt><dd>@report.SourceName</dd>
+                    <dt>Generated</dt><dd>@report.GeneratedAt.ToString("d MMM yyyy HH:mm:ss") UTC</dd>
+                    <dt>Retrieval and analysis</dt><dd>@report.Duration.TotalSeconds.ToString("N2")s</dd>
+                    <dt>Rules evaluated</dt><dd>@report.Recommendations.RulesEvaluated</dd>
+                </dl>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card__head"><h2>Export</h2></div>
+            <div class="card__body">
+                <p class="card__note" style="margin-bottom:.6rem">
+                    Each export records the account, the exact reporting dates and the currency, and is clearly
+                    marked when it contains demo data.
+                </p>
+                <div class="toolbar">
+                    @foreach (var (key, label) in ReportCsvExporter.Available)
+                    {
+                        <a class="btn btn--secondary btn--small"
+                           asp-page="/Export" asp-route-report="@report.ReportId" asp-route-section="@key">
+                            <span aria-hidden="true">⤓</span> @label
+                        </a>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+
+    @await Html.PartialAsync("_Notices", report.Notices)
+
+    @if (report.Recommendations.RuleFailures.Count > 0)
+    {
+        <div class="notice notice--error" role="alert">
+            <span class="notice__icon" aria-hidden="true">⛔</span>
+            <div class="notice__body">
+                <span class="notice__title">Some rules could not be evaluated</span>
+                These rules failed and their findings are missing from this report:
+                <ul style="margin:.3rem 0 0;padding-left:1.1rem">
+                    @foreach (var failureDetail in report.Recommendations.RuleFailures)
+                    {
+                        <li>@failureDetail</li>
+                    }
+                </ul>
+            </div>
+        </div>
+    }
+}

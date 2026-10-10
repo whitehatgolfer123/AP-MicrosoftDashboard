@@ -1,0 +1,38 @@
+@page
+@model AccessDeniedModel
+@{
+    ViewData["Title"] = "Access denied";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Access denied — Microsoft Ads Performance Auditor</title>
+    <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+    <main class="content" style="max-width:640px;margin:4rem auto">
+        <div class="card">
+            <div class="card__head">
+                <h1>Access denied</h1>
+                <span class="badge badge--critical"><span aria-hidden="true">&#9940;</span> Not permitted</span>
+            </div>
+            <div class="card__body">
+                <p>
+                    Your account signed in successfully but is not permitted to use the Microsoft Ads
+                    Performance Auditor.
+                </p>
+                <p class="card__note">
+                    This tool is limited to a specific Entra ID directory, and may be further restricted
+                    to named users. Ask whoever administers it to add your account.
+                </p>
+                <div class="toolbar">
+                    <a class="btn btn--secondary" href="/signout">Sign out</a>
+                </div>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

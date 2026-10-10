@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MsAds.Auditor.Ai/MsAds.Auditor.Ai.csproj" />
+    <Project Path="src/MsAds.Auditor.BingAds/MsAds.Auditor.BingAds.csproj" />
+    <Project Path="src/MsAds.Auditor.Core/MsAds.Auditor.Core.csproj" />
+    <Project Path="src/MsAds.Auditor.Web/MsAds.Auditor.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MsAds.Auditor.Tests/MsAds.Auditor.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,213 @@
+@using Microsoft.Extensions.Options
+@inject IOptions<AuditorOptions> AuditorOptionsAccessor
+@inject IReportStore ReportStore
+@inject BingAdsAuthenticationService Connection
+@inject AppSignInOptions SignIn
+@inject ChangeOptions ChangeSettings
+@using MsAds.Auditor.Web.Pages.Shared
+@{
+    var options = AuditorOptionsAccessor.Value;
+    var isDemo = options.Mode == AuditorMode.Demo;
+    var connection = Connection.GetStatus();
+    var latest = ReportStore.Latest;
+    var routeReportId = ViewContext.HttpContext.Request.Query["report"].ToString();
+    var activeReport = string.IsNullOrEmpty(routeReportId) || !Guid.TryParse(routeReportId, out var parsed)
+        ? latest
+        : (ReportStore.Get(parsed) ?? latest);
+    // A plain string rather than a route dictionary: see the note on asp-route-report below.
+    var reportId = activeReport?.ReportId.ToString();
+
+    string NavClass(string page) =>
+        string.Equals(ViewContext.RouteData.Values["page"]?.ToString(), page, StringComparison.OrdinalIgnoreCase)
+            ? "sidebar__link sidebar__link--active"
+            : "sidebar__link";
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>@ViewData["Title"] — Microsoft Ads Performance Auditor</title>
+    <link rel="icon" href="/favicon.ico?v=@AssetVersionProvider.Current" sizes="any" />
+    <link rel="icon" href="/img/logo.svg?v=@AssetVersionProvider.Current" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=@AssetVersionProvider.Current" />
+    <link rel="stylesheet" href="/lib/bootstrap/dist/css/bootstrap-reboot.min.css" />
+    <link rel="stylesheet" href="/css/site.css?v=@AssetVersionProvider.Current" />
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<div class="app">
+    <nav class="sidebar" aria-label="Sections">
+        <div class="sidebar__brand">
+            @* Inlined rather than an <img> so the mark takes the sidebar's own text colour.
+               The same shapes live in /img/logo.svg for use on light backgrounds. *@
+            <a class="sidebar__brand-link" asp-page="/Index" aria-label="Microsoft Ads Performance Auditor — home">
+                <svg class="sidebar__brand-logo" viewBox="0 0 108 108" fill="currentColor" aria-hidden="true" focusable="false">
+                    <circle cx="54" cy="23" r="14" />
+                    <circle cx="23" cy="54" r="14" />
+                    <circle cx="85" cy="54" r="14" />
+                    <circle cx="54" cy="85" r="14" />
+                    <rect x="42" y="42" width="24" height="24" />
+                </svg>
+                <span class="sidebar__brand-text">
+                    <span class="sidebar__brand-name">Microsoft Ads<br />Performance Auditor</span>
+                    <span class="sidebar__brand-sub">Internal audit tool</span>
+                </span>
+            </a>
+        </div>
+
+        <div class="sidebar__nav">
+            <span class="sidebar__group-label">Portfolio</span>
+            <a class="@NavClass("/Scan")" asp-page="/Scan">
+                <span class="icon" aria-hidden="true">&#9783;</span> Account Health
+            </a>
+
+            <span class="sidebar__group-label">Report</span>
+            <a class="@NavClass("/Index")" asp-page="/Index" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">▣</span> Dashboard
+            </a>
+            <a class="@NavClass("/Campaigns")" asp-page="/Campaigns" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">▤</span> Campaign Analysis
+                @if (activeReport is not null)
+                {
+                    <span class="sidebar__count">@activeReport.Campaigns.Count</span>
+                }
+            </a>
+            <a class="@NavClass("/SearchTerms")" asp-page="/SearchTerms" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">⌕</span> Search Term Waste
+                @if (activeReport is not null)
+                {
+                    <span class="sidebar__count">@activeReport.SearchTerms.FlaggedCount</span>
+                }
+            </a>
+            <a class="@NavClass("/Keywords")" asp-page="/Keywords" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">⚿</span> Keyword Analysis
+                @if (activeReport is not null)
+                {
+                    <span class="sidebar__count">@activeReport.Keywords.Count</span>
+                }
+            </a>
+            <a class="@NavClass("/Changes")" asp-page="/Changes" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">⟳</span> Change History
+                @if (activeReport is not null)
+                {
+                    <span class="sidebar__count">@activeReport.Changes.Count</span>
+                }
+            </a>
+            <a class="@NavClass("/Recommendations")" asp-page="/Recommendations" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">✓</span> Recommendations
+                @if (activeReport is not null)
+                {
+                    <span class="sidebar__count">@activeReport.Recommendations.Findings.Count</span>
+                }
+            </a>
+
+            <a class="@NavClass("/Apply")" asp-page="/Apply" asp-route-report="@reportId">
+                <span class="icon" aria-hidden="true">&#9998;</span> Apply Changes
+            </a>
+
+            <span class="sidebar__group-label">Tool</span>
+            <a class="@NavClass("/History")" asp-page="/History">
+                <span class="icon" aria-hidden="true">🕘</span> Report History
+                <span class="sidebar__count">@ReportStore.All.Count</span>
+            </a>
+            <a class="@NavClass("/Settings")" asp-page="/Settings">
+                <span class="icon" aria-hidden="true">⚙</span> Settings
+            </a>
+        </div>
+
+        <div class="sidebar__footer">
+            <span class="read-only-note" title="This application only reads data.">
+                <span aria-hidden="true">🔒</span> Read-only — makes no account changes
+            </span>
+        </div>
+    </nav>
+
+    <div class="main">
+        <header class="appbar">
+            <div>
+                <h1 class="appbar__title">@ViewData["Title"]</h1>
+                @if (activeReport is not null)
+                {
+                    <div class="count-note">
+                        Report generated @activeReport.GeneratedAt.ToString("d MMM yyyy HH:mm") UTC
+                        from @activeReport.SourceName
+                    </div>
+                }
+            </div>
+
+            <div class="appbar__meta">
+                @if (activeReport is not null)
+                {
+                    <div class="appbar__facts">
+                        <div>
+                            <span class="appbar__fact-label">Client account</span>
+                            <span class="appbar__fact-value">@activeReport.Account.AccountName</span>
+                            <span class="count-note">ID @activeReport.Account.AccountId</span>
+                        </div>
+                        <div>
+                            <span class="appbar__fact-label">Reporting period</span>
+                            <span class="appbar__fact-value">@activeReport.DateRangeLabel</span>
+                            <span class="count-note">vs @activeReport.ComparisonLabel</span>
+                        </div>
+                    </div>
+                }
+
+                @if (isDemo)
+                {
+                    <span class="conn conn--demo" title="Demo mode: figures are synthetic.">
+                        <span class="conn__dot" aria-hidden="true"></span> Demo data
+                    </span>
+                }
+                else if (connection.IsUsable)
+                {
+                    <a class="conn conn--live" asp-page="/Connect" title="@connection.Message">
+                        <span class="conn__dot" aria-hidden="true"></span>
+                        Live
+                    </a>
+                }
+                else
+                {
+                    <a class="conn conn--error" asp-page="/Connect" title="@connection.Message">
+                        <span class="conn__dot" aria-hidden="true"></span>
+                        Not connected
+                    </a>
+                }
+
+                @if (SignIn.Enabled && User.Identity?.IsAuthenticated == true)
+                {
+                    <span class="signed-in">
+                        <span class="signed-in__name">@(User.Identity.Name ?? "Signed in")</span>
+                        <a class="signed-in__out" href="/signout">Sign out</a>
+                    </span>
+                }
+
+                <a class="btn btn--primary" asp-page="/Index" asp-fragment="generate">
+                    <span aria-hidden="true">＋</span> Generate Report
+                </a>
+            </div>
+        </header>
+
+        <main class="content" id="main-content">
+            @if (isDemo)
+            {
+                <div class="notice notice--demo" role="note">
+                    <span class="notice__icon" aria-hidden="true">⚠</span>
+                    <div class="notice__body">
+                        <span class="notice__title">Demo mode — synthetic data</span>
+                        Every figure shown is generated sample data for demonstration and development. It is
+                        <strong>not</strong> live advertising performance and must not be presented as such.
+                        Switch to live mode in configuration once Microsoft Advertising API access is set up.
+                    </div>
+                </div>
+            }
+
+            @RenderBody()
+        </main>
+    </div>
+</div>
+
+<script src="/js/site.js?v=@AssetVersionProvider.Current"></script>
+</body>
+</html>

@@ -1,0 +1,77 @@
+@model TrendChartView
+@{
+    var chart = Model.Chart;
+    var descriptor = chart.Descriptor;
+}
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h3>@descriptor.Name</h3>
+            <p class="card__note card__note--chart">@descriptor.Definition</p>
+        </div>
+        @if (chart.HasComparison)
+        {
+            <div class="legend">
+                <span class="legend__item">
+                    <span class="chart__swatch chart__swatch--current" aria-hidden="true"></span>
+                    @Model.CurrentLabel (current)
+                </span>
+                <span class="legend__item">
+                    <span class="chart__swatch chart__swatch--previous" aria-hidden="true"></span>
+                    @Model.PreviousLabel (previous)
+                </span>
+            </div>
+        }
+    </div>
+    <div class="card__body">
+        @if (chart.IsEmpty)
+        {
+            <p class="count-note">
+                @descriptor.Name could not be calculated on any day in this period, so there is nothing to plot.
+                This is shown as no data rather than as zero.
+            </p>
+        }
+        else
+        {
+            <div class="chart-wrap chart">
+                <svg viewBox="@chart.ViewBox" role="img"
+                     data-points="@chart.HoverDataJson()"
+                     data-current-label="@Model.CurrentLabel"
+                     data-previous-label="@Model.PreviousLabel"
+                     aria-label="@($"Daily {descriptor.Name} for {Model.CurrentLabel}{(chart.HasComparison ? $", compared with {Model.PreviousLabel}" : "")}. The supporting figures are available in the daily performance CSV export.")">
+
+@* Each label is wrapped in a <g>, because Razor reserves a bare text tag for its own use. *@
+                    @foreach (var (y, label) in chart.GridLines())
+                    {
+                        <g>
+                            <line class="chart__grid-line" x1="@chart.PlotLeft" y1="@y" x2="@chart.PlotRight" y2="@y" />
+                            <text class="chart__axis-label" x="@(chart.PlotLeft - 8)" y="@(y + 3)" text-anchor="end">@label</text>
+                        </g>
+                    }
+
+                    @foreach (var (x, label, anchor) in chart.DateLabels())
+                    {
+                        <g>
+                            <text class="chart__axis-label" x="@x" y="@(chart.PlotBottom + 16)" text-anchor="@anchor">@label</text>
+                        </g>
+                    }
+
+                    @* The comparison period is drawn first so the current period sits on top. *@
+                    @if (chart.HasComparison && !string.IsNullOrEmpty(chart.PreviousPath))
+                    {
+                        <path class="chart__series--previous" d="@chart.PreviousPath" />
+                    }
+                    <path class="chart__series--current" d="@chart.CurrentPath" />
+
+                    <line class="chart__hover-line" y1="@chart.PlotTop" y2="@chart.PlotBottom" x1="0" x2="0" />
+                    <circle class="chart__hover-dot chart__hover-dot--previous" cx="0" cy="0" r="4.5" />
+                    <circle class="chart__hover-dot chart__hover-dot--current" cx="0" cy="0" r="4.5" />
+
+                    <rect class="chart__hover-zone" x="@chart.PlotLeft" y="@chart.PlotTop"
+                          width="@(chart.PlotRight - chart.PlotLeft)" height="@(chart.PlotBottom - chart.PlotTop)" />
+                </svg>
+                <div class="chart__tooltip" role="status" aria-live="off"></div>
+            </div>
+        }
+    </div>
+</div>

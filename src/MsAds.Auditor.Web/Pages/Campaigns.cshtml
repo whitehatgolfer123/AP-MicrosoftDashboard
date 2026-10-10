@@ -1,0 +1,176 @@
+@page
+@model CampaignsModel
+@{
+    ViewData["Title"] = "Campaign Analysis";
+    var report = Model.Report;
+}
+
+@if (report is null)
+{
+    @await Html.PartialAsync("_NoReport", Model.ReportExpired)
+}
+else
+{
+    var campaignFindings = report.Recommendations.Findings
+        .Where(f => f.EntityType == "Campaign")
+        .ToList();
+    var formatter = report.Formatter;
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Campaign performance</h2>
+                <p class="card__note">
+                    @report.Campaigns.Count campaign(s) for @report.DateRangeLabel.
+                    Campaigns that delivered only in the comparison period are included, so a campaign that
+                    has stopped is still visible.
+                </p>
+            </div>
+            <a class="btn btn--secondary btn--small" asp-page="/Export"
+               asp-route-report="@report.ReportId" asp-route-section="campaigns">
+                <span aria-hidden="true">⤓</span> Export CSV
+            </a>
+        </div>
+
+        <div class="card__body">
+            <div class="filters" data-filters-for="campaign-table">
+                <div class="field">
+                    <label for="campaign-search">Search</label>
+                    <input type="search" id="campaign-search" data-filter-field="text" placeholder="Campaign name…" />
+                </div>
+                <div class="field">
+                    <label for="campaign-status">Status</label>
+                    <select id="campaign-status" data-filter-field="status">
+                        <option value="">All</option>
+                        @foreach (var status in report.Campaigns.Select(c => c.Status).Where(s => s is not null).Distinct().OrderBy(s => s))
+                        {
+                            <option value="@status?.ToLowerInvariant()">@status</option>
+                        }
+                    </select>
+                </div>
+                <button type="button" class="btn btn--secondary btn--small" data-filter-reset>Reset</button>
+                <span class="count-note" data-filter-count="campaign-table"></span>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data" id="campaign-table" data-sortable>
+                <caption class="visually-hidden">
+                    Campaign performance for @report.DateRangeLabel with comparison against @report.ComparisonLabel.
+                </caption>
+                <thead>
+                    <tr>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Campaign <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th scope="col">Status</th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Impr. <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Clicks <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">CTR <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Spend <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Avg CPC <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Conv. <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Conv. rate <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">CPA <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">ROAS <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Impr. share <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var campaign in report.Campaigns)
+                {
+                    var current = campaign.Current;
+                    var spendDelta = campaign.Delta(MetricKey.Spend);
+                    var convDelta = campaign.Delta(MetricKey.Conversions);
+                    var cpaDelta = campaign.Delta(MetricKey.CostPerAcquisition);
+                    var ctrDelta = campaign.Delta(MetricKey.ClickThroughRate);
+
+                    <tr data-status="@campaign.Status?.ToLowerInvariant()">
+                        <td class="wrap">
+                            <strong>@campaign.Name</strong>
+                            <span class="sub">ID @campaign.EntityId@(campaign.Context is null ? "" : " · " + campaign.Context)</span>
+                        </td>
+                        <td>@(campaign.Status ?? MetricFormatter.NotAvailable)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Impressions)">@formatter.FormatInteger(current.Impressions)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Clicks)">@formatter.FormatInteger(current.Clicks)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.ClickThroughRate)">
+                            @formatter.FormatPercent(current.ClickThroughRate)
+                            @if (ctrDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(ctrDelta)</span>
+                            }
+                        </td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Spend)">
+                            @formatter.FormatCurrency(current.Spend)
+                            @if (spendDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(spendDelta)</span>
+                            }
+                        </td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.AverageCpc)">@formatter.FormatCurrency(current.AverageCpc)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Conversions)">
+                            @formatter.FormatInteger(current.Conversions)
+                            @if (convDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(convDelta)</span>
+                            }
+                        </td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.ConversionRate)">@formatter.FormatPercent(current.ConversionRate)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.CostPerAcquisition)">
+                            @formatter.FormatCurrency(current.CostPerAcquisition)
+                            @if (cpaDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(cpaDelta)</span>
+                            }
+                        </td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.ReturnOnAdSpend)">@formatter.Format(current.ReturnOnAdSpend, MetricKey.ReturnOnAdSpend)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(campaign.ImpressionShare)">
+                            @formatter.FormatPercent(campaign.ImpressionShare)
+                            @if (campaign.ImpressionShareLostToBudget is not null)
+                            {
+                                <span class="sub">@formatter.FormatPercent(campaign.ImpressionShareLostToBudget) lost to budget</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+
+        @if (report.Campaigns.Count == 0)
+        {
+            <div class="card__body">
+                <div class="empty">
+                    <span class="empty__icon" aria-hidden="true">▤</span>
+                    <p>
+                        No campaign data was returned for this period. This means the report came back empty,
+                        not that the account has no campaigns.
+                    </p>
+                </div>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <h2>Campaign findings</h2>
+            <span class="count-note">@campaignFindings.Count finding(s) at campaign level</span>
+        </div>
+        <div class="card__body">
+            @if (campaignFindings.Count == 0)
+            {
+                <p class="count-note">
+                    No campaign crossed a configured threshold in this period. That is not the same as every
+                    campaign performing well — review the table above and the data limitations.
+                </p>
+            }
+            else
+            {
+                @foreach (var finding in campaignFindings)
+                {
+                    @await Html.PartialAsync("_Finding", finding)
+                }
+            }
+        </div>
+    </div>
+
+    @await Html.PartialAsync("_Notices", report.Notices)
+}

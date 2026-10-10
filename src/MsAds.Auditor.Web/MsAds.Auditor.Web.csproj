@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsAds.Auditor.Core\MsAds.Auditor.Core.csproj" />
+    <ProjectReference Include="..\MsAds.Auditor.BingAds\MsAds.Auditor.BingAds.csproj" />
+    <ProjectReference Include="..\MsAds.Auditor.Ai\MsAds.Auditor.Ai.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.12" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UserSecretsId>e5134c8d-8d17-4960-b6b4-038bb7918ed0</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The test project exercises the address classification used by the exposure guard, which
+         is an implementation detail rather than public API. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>MsAds.Auditor.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

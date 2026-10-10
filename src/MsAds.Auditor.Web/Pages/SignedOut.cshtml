@@ -1,0 +1,30 @@
+@page
+@model SignedOutModel
+@{
+    ViewData["Title"] = "Signed out";
+    Layout = null;
+}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Signed out — Microsoft Ads Performance Auditor</title>
+    <link rel="stylesheet" href="/css/site.css" />
+</head>
+<body>
+    <main class="content" style="max-width:640px;margin:4rem auto">
+        <div class="card">
+            <div class="card__head"><h1>Signed out</h1></div>
+            <div class="card__body">
+                <p>You have been signed out of the Microsoft Ads Performance Auditor.</p>
+                <p class="card__note">
+                    The shared Microsoft Advertising connection is unaffected — it belongs to the
+                    application rather than to your session.
+                </p>
+                <a class="btn btn--primary" href="/">Sign in again</a>
+            </div>
+        </div>
+    </main>
+</body>
+</html>

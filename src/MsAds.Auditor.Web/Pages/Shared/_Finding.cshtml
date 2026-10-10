@@ -1,0 +1,82 @@
+@model Finding
+@{
+    var severity = ViewHelpers.SeverityClass(Model.Severity);
+}
+<article class="finding finding--@severity">
+    <div class="finding__head">
+        <span class="badge badge--@severity">
+            <span aria-hidden="true">@ViewHelpers.SeverityIcon(Model.Severity)</span>
+            @ViewHelpers.SeverityLabel(Model.Severity)
+        </span>
+        <h3 class="finding__title">@Model.Title</h3>
+        <span class="badge badge--muted">@Model.Category</span>
+        <span class="badge badge--muted" title="Confidence reflects how much data supports this finding.">
+            @ViewHelpers.ConfidenceLabel(Model.Confidence)
+        </span>
+    </div>
+
+    <div class="finding__body">
+        <div class="count-note">
+            @Model.EntityType@(Model.EntityName is null ? "" : ": " + Model.EntityName)
+            @if (Model.EntityId is not null)
+            {
+                <span>(ID @Model.EntityId)</span>
+            }
+            @if (!string.IsNullOrWhiteSpace(Model.EntityContext))
+            {
+                <span>· @Model.EntityContext</span>
+            }
+        </div>
+
+        @if (Model.Evidence.Count > 0)
+        {
+            <div class="finding__section">
+                <span class="finding__section-label">Supporting data</span>
+                <div class="evidence">
+                    @foreach (var item in Model.Evidence)
+                    {
+                        <div class="evidence__item">
+                            <span class="evidence__label">@item.Label</span>
+                            <span class="evidence__value">@item.Value</span>
+                            @if (item.Previous is not null)
+                            {
+                                <span class="evidence__change">was @item.Previous@(item.Change is null ? "" : ", " + item.Change)</span>
+                            }
+                            else if (item.Change is not null)
+                            {
+                                <span class="evidence__change">@item.Change</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        <div class="finding__section">
+            <span class="finding__section-label">Why this was flagged</span>
+            <p class="finding__text">@Model.Reason</p>
+        </div>
+
+        <div class="finding__section">
+            <span class="finding__section-label">Suggested action</span>
+            <p class="finding__text">@Model.SuggestedAction</p>
+        </div>
+
+        @if (Model.Caveats.Count > 0)
+        {
+            <div class="finding__section">
+                <span class="finding__section-label">Caveats and data limitations</span>
+                <ul class="finding__caveats">
+                    @foreach (var caveat in Model.Caveats)
+                    {
+                        <li>@caveat</li>
+                    }
+                </ul>
+            </div>
+        }
+
+        <div class="finding__section">
+            <span class="count-note">Rule: <code>@Model.RuleId</code></span>
+        </div>
+    </div>
+</article>

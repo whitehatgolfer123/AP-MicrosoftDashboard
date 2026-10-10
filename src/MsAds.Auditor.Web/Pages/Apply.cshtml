@@ -1,0 +1,300 @@
+@page
+@model ApplyModel
+@{
+    ViewData["Title"] = "Apply changes";
+    var report = Model.Report;
+    var changes = Model.Changes;
+    var result = Model.Result;
+}
+
+@if (Model.ErrorMessage is not null)
+{
+    <div class="notice notice--error" role="alert">
+        <span class="notice__icon" aria-hidden="true">&#9940;</span>
+        <div class="notice__body">@Model.ErrorMessage</div>
+    </div>
+}
+
+@if (!changes.Enabled)
+{
+    <div class="notice notice--warning" role="note">
+        <span class="notice__icon" aria-hidden="true">&#9888;</span>
+        <div class="notice__body">
+            <span class="notice__title">Applying changes is switched off — the application is read-only</span>
+            You can see what it would propose below, but nothing can be sent. Turn it on deliberately:
+            <pre style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.6rem;overflow-x:auto;font-size:.76rem;margin:.5rem 0 0"><code>dotnet user-secrets set "Auditor:Changes:Enabled" "true"
+dotnet user-secrets set "Auditor:Changes:AllowPausing" "true"   # only if you also want pausing</code></pre>
+            <p class="card__note" style="margin-top:.5rem">
+                Exclusions and pausing are gated separately, so you can allow negative keywords without
+                allowing campaigns to be switched off.
+            </p>
+        </div>
+    </div>
+}
+else if (Model.Applier.IsSimulated)
+{
+    <div class="notice notice--demo" role="note">
+        <span class="notice__icon" aria-hidden="true">&#9888;</span>
+        <div class="notice__body">
+            <span class="notice__title">Demo mode — changes are simulated</span>
+            The workflow runs end to end, but nothing is sent to any advertising account.
+        </div>
+    </div>
+}
+else
+{
+    <div class="notice notice--error" role="note">
+        <span class="notice__icon" aria-hidden="true">&#9888;</span>
+        <div class="notice__body">
+            <span class="notice__title">This will change a live advertising account</span>
+            Changes applied here take effect immediately in Microsoft Advertising@(changes.AllowPausing
+                ? ", including pausing campaigns and keywords." : ". Pausing is switched off.")
+        </div>
+    </div>
+}
+
+@if (report is null)
+{
+    @await Html.PartialAsync("_NoReport", Model.ReportExpired)
+}
+else
+{
+    var formatter = report.Formatter;
+
+    @if (result is not null)
+    {
+        <div class="card">
+            <div class="card__head">
+                <div>
+                    <h2>@(result.WasPreview ? "Review — nothing has been sent yet" : "Result")</h2>
+                    <p class="card__note">
+                        @if (result.WasPreview)
+                        {
+                            <span>Check each line, then confirm at the bottom to apply them.</span>
+                        }
+                        else
+                        {
+                            <span>
+                                @result.AppliedCount applied, @result.FailedCount failed.
+                                Run @result.RunId at @result.RanAt.ToString("d MMM yyyy HH:mm:ss") UTC@(result.RanBy is null ? "" : " by " + result.RanBy).
+                            </span>
+                        }
+                    </p>
+                </div>
+            </div>
+            <div class="table-scroll">
+                <table class="data">
+                    <caption class="visually-hidden">Outcome of each selected change.</caption>
+                    <thead>
+                        <tr>
+                            <th scope="col">Status</th>
+                            <th class="col-name" scope="col">Change</th>
+                            <th class="col-context" scope="col">Target</th>
+                            <th class="col-reason" scope="col">Detail</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var outcome in result.Outcomes)
+                    {
+                        var cls = outcome.Status switch
+                        {
+                            ChangeStatus.Applied => "positive",
+                            ChangeStatus.Failed => "critical",
+                            ChangeStatus.Skipped => "warning",
+                            _ => "information",
+                        };
+                        <tr>
+                            <td>
+                                <span class="badge badge--@cls">@outcome.Status</span>
+                            </td>
+                            <td class="wrap col-name">@outcome.Change.Summary</td>
+                            <td class="wrap col-context">@outcome.Change.TargetDescription</td>
+                            <td class="wrap col-reason">@outcome.Message</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+
+            @if (result.WasPreview)
+            {
+                <div class="card__body">
+                    <form method="post" asp-page-handler="Apply" data-progress>
+                        @foreach (var change in Model.ForReview)
+                        {
+                            <input type="hidden" name="SelectedChangeIds" value="@change.Id" />
+                        }
+                        <label class="check" style="margin-bottom:.75rem">
+                            <input type="checkbox" name="Confirmed" value="true" />
+                            I have reviewed each change above and want to apply @Model.ForReview.Count of them
+                            to @report.Account.AccountName.
+                        </label>
+                        <div class="toolbar">
+                            <button type="submit" class="btn btn--primary" data-submit-progress>
+                                <span aria-hidden="true">&#10003;</span> Apply @Model.ForReview.Count change(s)
+                            </button>
+                            <a class="btn btn--secondary" asp-page="/Apply" asp-route-report="@report.ReportId">Cancel</a>
+                            <span class="count-note" data-submit-status role="status" aria-live="polite"></span>
+                        </div>
+                    </form>
+                </div>
+            }
+        </div>
+    }
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Proposed changes</h2>
+                <p class="card__note">
+                    @Model.Proposals.Count change(s) derived from this audit of @report.Account.AccountName.
+                    Nothing is selected by default, and only findings that map onto a single unambiguous
+                    platform operation appear here — everything else stays a recommendation to read.
+                    @if (Model.AlreadyAppliedCount > 0)
+                    {
+                        <strong>
+                            @Model.AlreadyAppliedCount already applied to this account and removed from the
+                            list; re-run the report to see their effect.
+                        </strong>
+                    }
+                </p>
+            </div>
+            <a class="btn btn--secondary btn--small" asp-page="/Recommendations" asp-route-report="@report.ReportId">
+                All recommendations
+            </a>
+        </div>
+
+        @if (Model.Proposals.Count == 0)
+        {
+            <div class="card__body">
+                <div class="empty">
+                    <span class="empty__icon" aria-hidden="true">&#10003;</span>
+                    <p>
+                        This audit produced nothing that can be applied as a single platform change. That is
+                        not the same as nothing to do — read the recommendations for the judgement calls.
+                    </p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card__body">
+                <form method="post" asp-page-handler="Review" data-progress>
+                    <div class="toolbar" style="margin-bottom:.75rem">
+                        <button type="button" class="btn btn--secondary btn--small" data-select-all="change-list">Select all permitted</button>
+                        <button type="button" class="btn btn--secondary btn--small" data-select-none="change-list">Select none</button>
+                        <span class="count-note">Limit of @changes.MaxChangesPerRun change(s) per run.</span>
+                    </div>
+
+                    <div id="change-list">
+                        @foreach (var change in Model.Proposals)
+                        {
+                            var permitted = changes.Permits(change);
+                            var refusal = changes.RefusalReason(change);
+                            var riskClass = change.Risk == ChangeRisk.StopsDelivery ? "critical" : "information";
+                            var riskLabel = change.Risk == ChangeRisk.StopsDelivery ? "Stops delivery" : "Adds an exclusion";
+
+                            <article class="finding finding--@(change.Risk == ChangeRisk.StopsDelivery ? "critical" : "information")">
+                                <div class="finding__head">
+                                    <label class="check">
+                                        <input type="checkbox" name="SelectedChangeIds" value="@change.Id"
+                                               disabled="@(!permitted)" />
+                                        <span class="visually-hidden">Select: @change.Summary</span>
+                                    </label>
+                                    <h3 class="finding__title">@change.Summary</h3>
+                                    <span class="badge badge--@riskClass">
+                                        <span aria-hidden="true">@(change.Risk == ChangeRisk.StopsDelivery ? "⛔" : "+")</span>
+                                        @riskLabel
+                                    </span>
+                                    @if (change.SpendAtStake is not null)
+                                    {
+                                        <span class="badge badge--muted">@formatter.FormatCurrency(change.SpendAtStake) at stake</span>
+                                    }
+                                </div>
+                                <div class="finding__body">
+                                    <div class="count-note">@change.TargetDescription · source: @change.Source</div>
+
+                                    @if (!permitted)
+                                    {
+                                        <div class="notice notice--warning" role="note" style="margin-top:.5rem">
+                                            <span class="notice__icon" aria-hidden="true">&#9888;</span>
+                                            <div class="notice__body">@refusal</div>
+                                        </div>
+                                    }
+
+                                    <div class="finding__section">
+                                        <span class="finding__section-label">Why it is proposed</span>
+                                        <p class="finding__text">@change.Rationale</p>
+                                    </div>
+
+                                    @if (change.Caveats.Count > 0)
+                                    {
+                                        <div class="finding__section">
+                                            <span class="finding__section-label">Before you apply it</span>
+                                            <ul class="finding__caveats">
+                                                @foreach (var caveat in change.Caveats)
+                                                {
+                                                    <li>@caveat</li>
+                                                }
+                                            </ul>
+                                        </div>
+                                    }
+                                </div>
+                            </article>
+                        }
+                    </div>
+
+                    <div class="toolbar" style="margin-top:1rem">
+                        <button type="submit" class="btn btn--primary" data-submit-progress>
+                            <span aria-hidden="true">&#9654;</span> Review selected changes
+                        </button>
+                        <span class="count-note">
+                            The next step shows exactly what each one will do. Nothing is sent until you confirm.
+                        </span>
+                        <span class="count-note" data-submit-status role="status" aria-live="polite"></span>
+                    </div>
+                </form>
+            </div>
+        }
+    </div>
+}
+
+@if (Model.History.Count > 0)
+{
+    <div class="card">
+        <div class="card__head">
+            <h2>Change log</h2>
+            <span class="count-note">What this tool has altered, most recent first</span>
+        </div>
+        <div class="table-scroll">
+            <table class="data">
+                <caption class="visually-hidden">Previous apply runs.</caption>
+                <thead>
+                    <tr>
+                        <th scope="col">When</th>
+                        <th scope="col">Account</th>
+                        <th scope="col">By</th>
+                        <th class="num" scope="col">Applied</th>
+                        <th class="num" scope="col">Failed</th>
+                        <th class="col-reason" scope="col">Changes</th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var run in Model.History)
+                {
+                    <tr>
+                        <td>@run.RanAt.ToString("d MMM yyyy HH:mm:ss")<span class="sub">UTC</span></td>
+                        <td class="wrap">@run.AccountName<span class="sub">ID @run.AccountId</span></td>
+                        <td>@(run.RanBy ?? "—")</td>
+                        <td class="num">@run.AppliedCount</td>
+                        <td class="num">@run.FailedCount</td>
+                        <td class="wrap col-reason">
+                            @(string.Join("; ", run.Outcomes.Select(o => o.Change.Summary)))
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}

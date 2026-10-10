@@ -1,0 +1,27 @@
+@model IEnumerable<DataNotice>
+@{
+    var notices = Model?.ToList() ?? [];
+}
+@if (notices.Count > 0)
+{
+    <div class="card">
+        <div class="card__head">
+            <h2>Data quality and limitations</h2>
+            <span class="count-note">@notices.Count note(s) — read these before acting on the figures</span>
+        </div>
+        <div class="card__body">
+            @foreach (var notice in notices)
+            {
+                <div class="@ViewHelpers.NoticeClass(notice.Severity)" role="note">
+                    <span class="notice__icon" aria-hidden="true">@ViewHelpers.NoticeIcon(notice.Severity)</span>
+                    <div class="notice__body">
+                        <span class="notice__title">
+                            @ViewHelpers.NoticeTitle(notice.Severity)@(notice.Scope is null ? "" : " — " + notice.Scope)
+                        </span>
+                        @notice.Message
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+}

@@ -1,0 +1,57 @@
+@model AuditReport
+<div class="tiles">
+    @foreach (var card in Model.Summary)
+    {
+        var delta = card.Delta;
+        var descriptor = card.Descriptor;
+        var formatter = Model.Formatter;
+        var spark = Sparkline.Build(Model, card.Key);
+        var unavailable = delta.Current is null;
+        <div class="tile">
+            <span class="tile__label" title="@descriptor.Definition">@descriptor.Name</span>
+
+            <span class="tile__value @(unavailable ? "tile__value--unavailable" : "")">
+                @if (unavailable)
+                {
+                    @:Not available
+                }
+                else
+                {
+                    @formatter.Format(delta.Current, card.Key)
+                }
+            </span>
+
+            <div class="tile__row">
+                <span class="@ViewHelpers.ChipClass(delta.Verdict)"
+                      title="@($"{descriptor.Name}: {ViewHelpers.VerdictWord(delta.Verdict, delta.Kind)} movement")">
+                    <span aria-hidden="true">@ViewHelpers.ChangeIcon(delta.Kind)</span>
+                    @formatter.FormatChange(delta)
+                    <span class="visually-hidden">(@ViewHelpers.VerdictWord(delta.Verdict, delta.Kind))</span>
+                </span>
+
+                @if (delta.Previous is not null)
+                {
+                    <span class="tile__previous">
+                        was @formatter.Format(delta.Previous, card.Key)
+                        @if (delta.Absolute is not null && delta.Kind is not ChangeKind.NoChange)
+                        {
+                            <span>(@formatter.FormatAbsoluteChange(delta, card.Key))</span>
+                        }
+                    </span>
+                }
+                else
+                {
+                    <span class="tile__previous">no previous value</span>
+                }
+            </div>
+
+            @if (spark.HasData)
+            {
+                <svg class="tile__spark" viewBox="@spark.ViewBox" preserveAspectRatio="none"
+                     role="img" aria-label="@($"Daily {descriptor.Name} trend across the reporting period")">
+                    <path d="@spark.Path" />
+                </svg>
+            }
+        </div>
+    }
+</div>

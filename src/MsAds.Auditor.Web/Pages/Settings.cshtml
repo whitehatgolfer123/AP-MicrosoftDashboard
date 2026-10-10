@@ -1,0 +1,539 @@
+@page
+@model SettingsModel
+@{
+    ViewData["Title"] = "Settings";
+    var ms = Model.Options.MicrosoftAdvertising;
+    var missing = ms.MissingSettings();
+
+    // Declared here rather than inline: a multi-line switch expression inside @( ) does not
+    // parse, because Razor treats the opening brace as the end of the expression.
+    string PolarityLabel(MetricPolarity polarity) => polarity switch
+    {
+        MetricPolarity.HigherIsBetter => "Higher is better",
+        MetricPolarity.LowerIsBetter => "Lower is better",
+        _ => "Neither — read in context",
+    };
+}
+
+@if (Model.Saved)
+{
+    <div class="notice notice--info" role="status">
+        <span class="notice__icon" aria-hidden="true">✓</span>
+        <div class="notice__body">
+            <span class="notice__title">Thresholds saved</span>
+            These values apply to the next report you generate. Reports already generated keep the thresholds
+            that were in force when they ran, so an existing report never changes meaning retrospectively.
+        </div>
+    </div>
+}
+
+@if (Model.Errors.Count > 0)
+{
+    <div class="notice notice--error" role="alert">
+        <span class="notice__icon" aria-hidden="true">⛔</span>
+        <div class="notice__body">
+            <span class="notice__title">These values could not be used</span>
+            <ul style="margin:.3rem 0 0;padding-left:1.1rem">
+                @foreach (var error in Model.Errors)
+                {
+                    <li>@error</li>
+                }
+            </ul>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Connection status</h2>
+            <p class="card__note">Current data source: <strong>@Model.SourceName</strong></p>
+        </div>
+        @if (Model.IsDemo)
+        {
+            <span class="conn conn--demo"><span class="conn__dot" aria-hidden="true"></span> Demo data</span>
+        }
+        else if (missing.Count > 0)
+        {
+            <span class="conn conn--error"><span class="conn__dot" aria-hidden="true"></span> Not connected</span>
+        }
+        else
+        {
+            <span class="conn conn--live"><span class="conn__dot" aria-hidden="true"></span> Credentials configured</span>
+        }
+    </div>
+    <div class="card__body">
+        <dl class="kv">
+            <dt>Mode</dt><dd>@Model.Options.Mode</dd>
+            <dt>API environment</dt><dd>@ms.Environment</dd>
+            <dt>Sign-in tenant</dt><dd>@ms.Tenant</dd>
+            <dt>Redirect URI</dt><dd><code>@ms.RedirectUri</code></dd>
+            <dt>Developer token</dt><dd>@(string.IsNullOrWhiteSpace(ms.DeveloperToken) ? "Not configured" : "Configured")</dd>
+            <dt>Application (client) ID</dt><dd>@(string.IsNullOrWhiteSpace(ms.ClientId) ? "Not configured" : "Configured")</dd>
+            <dt>Client secret</dt><dd>@(string.IsNullOrWhiteSpace(ms.ClientSecret) ? "Not configured" : "Configured")</dd>
+            <dt>Reports retained</dt><dd>@Model.Options.ReportHistoryLimit (in memory only)</dd>
+        </dl>
+
+        <p class="card__note" style="margin-top:.75rem">
+            Credential values are never displayed, logged or written to source control — only whether each is
+            present. Configure them with <code>dotnet user-secrets</code> in development, or environment
+            variables in a hosted environment.
+        </p>
+
+        <div class="toolbar" style="margin-top:.75rem">
+            <a class="btn btn--secondary btn--small" asp-page="/Connect">Manage the Microsoft Advertising connection</a>
+        </div>
+
+        @if (missing.Count > 0 && !Model.IsDemo)
+        {
+            <div class="notice notice--warning" role="note" style="margin-top:.75rem">
+                <span class="notice__icon" aria-hidden="true">⚠</span>
+                <div class="notice__body">
+                    <span class="notice__title">Missing credentials</span>
+                    Live mode is selected but these are not configured: <strong>@(string.Join(", ", missing))</strong>.
+                    Reports cannot be generated until they are supplied.
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Optional AI commentary</h2>
+            <p class="card__note">
+                Adds a written commentary alongside the calculated analysis. Entirely optional — every
+                figure, finding and recommendation is produced without it, and the tool is free to run
+                with this switched off.
+            </p>
+        </div>
+        @if (Model.AiConfigured)
+        {
+            <span class="conn conn--live"><span class="conn__dot" aria-hidden="true"></span> Key configured</span>
+        }
+        else
+        {
+            <span class="conn conn--demo"><span class="conn__dot" aria-hidden="true"></span> Off</span>
+        }
+    </div>
+    <div class="card__body">
+        @if (Model.AiMessage is not null)
+        {
+            <div class="notice notice--info" role="status">
+                <span class="notice__icon" aria-hidden="true">&#10003;</span>
+                <div class="notice__body">@Model.AiMessage</div>
+            </div>
+        }
+        @if (Model.AiError is not null)
+        {
+            <div class="notice notice--error" role="alert">
+                <span class="notice__icon" aria-hidden="true">&#9888;</span>
+                <div class="notice__body">@Model.AiError</div>
+            </div>
+        }
+
+        <dl class="kv">
+            <dt>Status</dt>
+            <dd>
+                @if (Model.SavedAiCredential is { } saved)
+                {
+                    <span>Key saved on this machine for @saved.Provider (@saved.Hint)</span>
+                }
+                else if (Model.AiConfigured)
+                {
+                    <span>Key supplied by configuration for @Model.Ai.Provider</span>
+                }
+                else
+                {
+                    <span>No key — commentary is switched off</span>
+                }
+            </dd>
+            <dt>Model</dt>
+            <dd>@(Model.AiConfigured ? Model.Ai.EffectiveModel : "none")</dd>
+            <dt>Typical cost per commentary</dt>
+            <dd>
+                @if (Model.AiConfigured && Model.AiTypicalCostUsd is { } cost)
+                {
+                    <span>about $@cost.ToString("N3"), billed to your own API key</span>
+                }
+                else if (Model.AiConfigured)
+                {
+                    <span>unknown for this model</span>
+                }
+                else
+                {
+                    <span>nothing — no calls are made</span>
+                }
+            </dd>
+        </dl>
+
+        <div class="notice notice--warning" role="note" style="margin-top:.75rem">
+            <span class="notice__icon" aria-hidden="true">&#9888;</span>
+            <div class="notice__body">
+                <span class="notice__title">Two things to weigh before switching this on</span>
+                <strong>Cost:</strong> each commentary is a paid API call on your own key. Nothing is
+                spent unless you click "Write commentary" on a report, so the cost is per report you
+                choose, not per audit.
+                <br />
+                <strong>Client data:</strong> enabling it sends that account's performance figures —
+                spend, conversions, campaign and search term names — to the provider you choose, to
+                write the commentary. Check that is acceptable for the clients whose accounts you audit.
+            </div>
+        </div>
+    </div>
+</div>
+
+<form method="post" asp-page-handler="Ai" autocomplete="off">
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>AI API key</h2>
+                <p class="card__note">
+                    Paste a key to switch the commentary on. It is encrypted before it is written to
+                    disk, kept outside this repository, and never shown again — only which provider it
+                    belongs to and its last four characters.
+                </p>
+            </div>
+        </div>
+        <div class="card__body">
+            <div class="controls">
+                <div class="field">
+                    <label for="aiProvider">Service</label>
+                    <select id="aiProvider" name="aiProvider">
+                        <option value="OpenAi" selected="@(Model.Ai.Provider == MsAds.Auditor.Ai.AiProvider.OpenAi)">OpenAI (ChatGPT)</option>
+                        <option value="Anthropic" selected="@(Model.Ai.Provider == MsAds.Auditor.Ai.AiProvider.Anthropic)">Anthropic (Claude)</option>
+                    </select>
+                    <span class="hint">Whichever you have a key for. The commentary is written the same way either way.</span>
+                </div>
+                <div class="field">
+                    <label for="aiApiKey">API key</label>
+                    <input id="aiApiKey" name="aiApiKey" type="password"
+                           autocomplete="off" spellcheck="false"
+                           placeholder="@(Model.SavedAiCredential is null ? "sk-…" : "enter a new key to replace the saved one")" />
+                    <span class="hint">
+                        OpenAI keys start "sk-"; Anthropic keys start "sk-ant-". Get one at
+                        platform.openai.com or console.anthropic.com.
+                    </span>
+                </div>
+                <div class="field">
+                    <label for="aiModel">Model (optional)</label>
+                    <input id="aiModel" name="aiModel" type="text"
+                           value="@Model.Ai.Model" placeholder="@Model.Ai.EffectiveModel" />
+                    <span class="hint">
+                        Leave blank for a sensible default — gpt-4o-mini on OpenAI, which costs a
+                        fraction of a penny per report. Name a bigger model only if the writing matters
+                        more than the cost.
+                    </span>
+                </div>
+            </div>
+            <div class="toolbar" style="margin-top:1.25rem">
+                <button type="submit" class="btn btn--primary">Save key</button>
+                <button type="submit" class="btn btn--secondary" asp-page-handler="RemoveAi">Remove key</button>
+                <span class="count-note">Nothing is sent anywhere until you ask for a commentary.</span>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Setting the key outside the browser</h2>
+            <p class="card__note">
+                For a shared or deployed instance, set it in configuration instead so it is never
+                typed into a page. A key set this way is used when nothing is saved above.
+            </p>
+        </div>
+    </div>
+    <div class="card__body">
+        <pre style="background:var(--accent-lighter);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.6rem;overflow-x:auto;font-size:.76rem;margin:0"><code>cd src/MsAds.Auditor.Web
+dotnet user-secrets set "Auditor:Ai:Provider" "OpenAi"
+dotnet user-secrets set "Auditor:Ai:ApiKey" "&lt;your api key&gt;"
+
+# optional — a specific model instead of the default
+dotnet user-secrets set "Auditor:Ai:Model" "gpt-4o-mini"</code></pre>
+        <p class="card__note" style="margin-top:.5rem">
+            Either way the key is read from storage, never displayed, and never written to logs or
+            source control. Remove it and the feature switches itself off again.
+        </p>
+    </div>
+</div>
+
+<form method="post">
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Commercial targets</h2>
+                <p class="card__note">
+                    Leave these blank if you do not know the client's objective. The application will then
+                    describe performance relative to the account's own averages instead of judging it against
+                    a target it cannot know. Not every account optimises for the same thing.
+                </p>
+            </div>
+        </div>
+        <div class="card__body">
+            <div class="controls">
+                <div class="field">
+                    <label for="Settings_TargetCpa">Target CPA</label>
+                    <input type="number" step="0.01" min="0" id="Settings_TargetCpa" name="Settings.TargetCpa" value="@Model.Settings.TargetCpa" placeholder="Not set" />
+                    <span class="hint">Cost per acquisition the client is aiming for.</span>
+                </div>
+                <div class="field">
+                    <label for="Settings_TargetRoas">Target ROAS</label>
+                    <input type="number" step="0.01" min="0" id="Settings_TargetRoas" name="Settings.TargetRoas" value="@Model.Settings.TargetRoas" placeholder="Not set" />
+                    <span class="hint">As a ratio, e.g. 4 means £4 of value per £1 spent.</span>
+                </div>
+                <div class="field">
+                    <label for="Settings_CpaToleranceAboveTargetPercent">CPA tolerance above target (%)</label>
+                    <input type="number" step="1" min="0" id="Settings_CpaToleranceAboveTargetPercent" name="Settings.CpaToleranceAboveTargetPercent" value="@Model.Settings.CpaToleranceAboveTargetPercent" />
+                    <span class="hint">How far above target CPA is accepted before flagging.</span>
+                </div>
+                <div class="field">
+                    <label for="Settings_CurrencyCode">Fallback currency</label>
+                    <input type="text" id="Settings_CurrencyCode" name="Settings.CurrencyCode" value="@Model.Settings.CurrencyCode" maxlength="3" />
+                    <span class="hint">Only used when the account's own currency is unknown.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Evidence thresholds</h2>
+                <p class="card__note">
+                    How much data a rule needs before it will draw a conclusion. These exist so that nothing is
+                    called bad on the strength of a handful of clicks over a short period.
+                </p>
+            </div>
+        </div>
+        <div class="card__body">
+            <div class="controls">
+                <div class="field">
+                    <label for="Settings_MinimumSpend">Minimum spend</label>
+                    <input type="number" step="0.01" min="0" id="Settings_MinimumSpend" name="Settings.MinimumSpend" value="@Model.Settings.MinimumSpend" />
+                    <span class="hint">Below this, an entity is not flagged at all.</span>
+                </div>
+                <div class="field">
+                    <label for="Settings_MinimumClicks">Minimum clicks</label>
+                    <input type="number" step="1" min="0" id="Settings_MinimumClicks" name="Settings.MinimumClicks" value="@Model.Settings.MinimumClicks" />
+                    <span class="hint">Below this, findings are marked low confidence.</span>
+                </div>
+                <div class="field">
+                    <label for="Settings_MinimumConversions">Minimum conversions</label>
+                    <input type="number" step="0.01" min="0" id="Settings_MinimumConversions" name="Settings.MinimumConversions" value="@Model.Settings.MinimumConversions" />
+                    <span class="hint">Needed before performance is called strong.</span>
+                </div>
+                <div class="field">
+                    <label for="Settings_MinimumImpressionsForCtr">Minimum impressions for CTR</label>
+                    <input type="number" step="1" min="0" id="Settings_MinimumImpressionsForCtr" name="Settings.MinimumImpressionsForCtr" value="@Model.Settings.MinimumImpressionsForCtr" />
+                    <span class="hint">Required in both periods before a CTR movement counts.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Change sensitivity</h2>
+                <p class="card__note">How large a movement has to be before it is treated as significant.</p>
+            </div>
+        </div>
+        <div class="card__body">
+            <div class="controls">
+                <div class="field">
+                    <label for="Settings_SignificantChangePercent">Significant change (%)</label>
+                    <input type="number" step="1" min="1" id="Settings_SignificantChangePercent" name="Settings.SignificantChangePercent" value="@Model.Settings.SignificantChangePercent" />
+                </div>
+                <div class="field">
+                    <label for="Settings_CtrDeclinePercent">CTR decline (%)</label>
+                    <input type="number" step="1" min="1" id="Settings_CtrDeclinePercent" name="Settings.CtrDeclinePercent" value="@Model.Settings.CtrDeclinePercent" />
+                </div>
+                <div class="field">
+                    <label for="Settings_DeliveryDropPercent">Delivery drop (%)</label>
+                    <input type="number" step="1" min="1" id="Settings_DeliveryDropPercent" name="Settings.DeliveryDropPercent" value="@Model.Settings.DeliveryDropPercent" />
+                </div>
+                <div class="field">
+                    <label for="Settings_ImpressionShareLostToBudgetPercent">Impression share lost to budget (%)</label>
+                    <input type="number" step="1" min="0" id="Settings_ImpressionShareLostToBudgetPercent" name="Settings.ImpressionShareLostToBudgetPercent" value="@Model.Settings.ImpressionShareLostToBudgetPercent" />
+                </div>
+                <div class="field">
+                    <label for="Settings_CpaVersusAccountMultiple">CPA vs account average (×)</label>
+                    <input type="number" step="0.1" min="1" id="Settings_CpaVersusAccountMultiple" name="Settings.CpaVersusAccountMultiple" value="@Model.Settings.CpaVersusAccountMultiple" />
+                </div>
+                <div class="field">
+                    <label for="Settings_ChangeImpactWindowDays">Change impact window (days)</label>
+                    <input type="number" step="1" min="1" max="14" id="Settings_ChangeImpactWindowDays" name="Settings.ChangeImpactWindowDays" value="@Model.Settings.ChangeImpactWindowDays" />
+                    <span class="hint">Days either side of a change compared for an association.</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Search term waste rules</h2>
+                <p class="card__note">
+                    A term is only proposed as a negative keyword when it passes both thresholds and has a
+                    confirmed zero conversions.
+                </p>
+            </div>
+        </div>
+        <div class="card__body">
+            <div class="controls">
+                <div class="field">
+                    <label for="Settings_SearchTermMinimumSpend">Minimum spend</label>
+                    <input type="number" step="0.01" min="0" id="Settings_SearchTermMinimumSpend" name="Settings.SearchTermMinimumSpend" value="@Model.Settings.SearchTermMinimumSpend" />
+                </div>
+                <div class="field">
+                    <label for="Settings_SearchTermMinimumClicks">Minimum clicks</label>
+                    <input type="number" step="1" min="0" id="Settings_SearchTermMinimumClicks" name="Settings.SearchTermMinimumClicks" value="@Model.Settings.SearchTermMinimumClicks" />
+                </div>
+            </div>
+
+            <div class="toolbar" style="margin-top:1.25rem">
+                <button type="submit" class="btn btn--primary">Save thresholds</button>
+                <button type="submit" class="btn btn--secondary" asp-page-handler="Reset">Reset to configured defaults</button>
+                <span class="count-note">Applies to the next report generated.</span>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>How each metric is calculated</h2>
+            <p class="card__note">
+                Every figure in the application is derived from retrieved data using these definitions. A blank
+                value means the metric is undefined for that row — never that it is zero.
+            </p>
+        </div>
+    </div>
+    <div class="table-scroll">
+        <table class="data">
+            <caption class="visually-hidden">Metric definitions and which direction is favourable.</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Metric</th>
+                    <th scope="col">Favourable direction</th>
+                    <th scope="col">Definition</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var descriptor in MetricCatalogue.All)
+            {
+                <tr>
+                    <td><strong>@descriptor.Name</strong><span class="sub">@descriptor.ShortName</span></td>
+                    <td>
+                        @PolarityLabel(descriptor.Polarity)
+                    </td>
+                    <td class="wrap">@descriptor.Definition</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+    <div class="card__body">
+        <p class="card__note">
+            Conversions and conversion value reflect the conversion goals included in the account's reporting
+            and its configured attribution model. Figures from accounts with different goals or attribution
+            settings are not combined. Conversions are credited to the date of the click, so recent days can
+            continue to accrue conversions after the fact.
+        </p>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Active rules</h2>
+            <p class="card__note">
+                @Model.Rules.Count deterministic rule(s). No AI service calculates a metric or decides whether a
+                threshold has been crossed.
+            </p>
+        </div>
+    </div>
+    <div class="table-scroll">
+        <table class="data">
+            <caption class="visually-hidden">The rules the recommendation engine evaluates.</caption>
+            <thead>
+                <tr>
+                    <th scope="col">Rule</th>
+                    <th scope="col">Identifier</th>
+                    <th scope="col">What it looks for</th>
+                </tr>
+            </thead>
+            <tbody>
+            @foreach (var rule in Model.Rules.OrderBy(r => r.RuleId))
+            {
+                <tr>
+                    <td class="wrap"><strong>@rule.Name</strong></td>
+                    <td><code>@rule.RuleId</code></td>
+                    <td class="wrap">@rule.Description</td>
+                </tr>
+            }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="card">
+    <div class="card__head">
+        <h2>What this application can change</h2>
+        @if (Model.Changes.Enabled)
+        {
+            <span class="conn conn--demo"><span class="conn__dot" aria-hidden="true"></span> Changes enabled</span>
+        }
+        else
+        {
+            <span class="conn conn--live"><span class="conn__dot" aria-hidden="true"></span> Read-only</span>
+        }
+    </div>
+    <div class="card__body">
+        <p>
+            Reporting and analysis are read-only throughout. The data source interface exposes no write
+            operation at all, so no amount of auditing can alter an account — a write cannot be added to that
+            path by accident.
+        </p>
+
+        @if (Model.Changes.Enabled)
+        {
+            <div class="notice notice--warning" role="note">
+                <span class="notice__icon" aria-hidden="true">&#9888;</span>
+                <div class="notice__body">
+                    <span class="notice__title">Applying changes is switched on</span>
+                    This instance can alter advertising accounts through the Apply Changes page.
+                    @if (Model.Changes.AllowPausing)
+                    {
+                        <span>Both exclusions and pausing are permitted.</span>
+                    }
+                    else
+                    {
+                        <span>Only exclusions are permitted; pausing is switched off.</span>
+                    }
+                    Up to @Model.Changes.MaxChangesPerRun change(s) per run.
+                </div>
+            </div>
+        }
+
+        <dl class="kv" style="margin-top:.75rem">
+            <dt>Add negative keywords</dt>
+            <dd>@(Model.Changes.Enabled ? "Allowed, with confirmation" : "Not allowed")</dd>
+            <dt>Pause keywords and campaigns</dt>
+            <dd>@(Model.Changes.Enabled && Model.Changes.AllowPausing ? "Allowed, with confirmation" : "Not allowed")</dd>
+            <dt>Change budgets or bids</dt><dd>Never — not implemented</dd>
+            <dt>Edit targeting</dt><dd>Never — not implemented</dd>
+            <dt>Modify conversion tracking</dt><dd>Never — not implemented</dd>
+        </dl>
+
+        <p class="card__note" style="margin-top:.75rem">
+            Nothing is ever applied automatically. Every change has to be selected individually, reviewed on a
+            screen that shows the exact operation it will perform, and then confirmed. Each run is written to
+            the change log with who ran it and what landed.
+        </p>
+    </div>
+</div>

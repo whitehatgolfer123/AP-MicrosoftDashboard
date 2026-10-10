@@ -1,0 +1,282 @@
+﻿@page
+@model ConnectModel
+@{
+    ViewData["Title"] = "Microsoft Advertising connection";
+    var ads = Model.Ads;
+    var status = Model.Status;
+}
+
+@if (!string.IsNullOrEmpty(Model.Message))
+{
+    <div class="notice notice--info" role="status">
+        <span class="notice__icon" aria-hidden="true">✓</span>
+        <div class="notice__body">@Model.Message</div>
+    </div>
+}
+
+@if (!string.IsNullOrEmpty(Model.Error))
+{
+    <div class="notice notice--error" role="alert">
+        <span class="notice__icon" aria-hidden="true">⛔</span>
+        <div class="notice__body">
+            <span class="notice__title">Could not connect</span>
+            @Model.Error
+        </div>
+    </div>
+}
+
+@if (Model.IsDemoMode)
+{
+    <div class="notice notice--warning" role="note">
+        <span class="notice__icon" aria-hidden="true">⚠</span>
+        <div class="notice__body">
+            <span class="notice__title">The application is running in demo mode</span>
+            Connecting below stores the credentials, but reports will keep using synthetic data until
+            <code>Auditor:Mode</code> is set to <code>Live</code>.
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Connection status</h2>
+            <p class="card__note">
+                @ads.Environment environment@(ads.IsSandbox ? " — sandbox data, separate from production" : "")
+            </p>
+        </div>
+        @switch (status.State)
+        {
+            case ConnectionState.Connected:
+                <span class="conn conn--live"><span class="conn__dot" aria-hidden="true"></span> Connected</span>
+                break;
+            case ConnectionState.NotSignedIn:
+                <span class="conn conn--demo"><span class="conn__dot" aria-hidden="true"></span> Not signed in</span>
+                break;
+            default:
+                <span class="conn conn--error"><span class="conn__dot" aria-hidden="true"></span> Not configured</span>
+                break;
+        }
+    </div>
+    <div class="card__body">
+        <p>@status.Message</p>
+
+        @if (status.SignedInUser is not null)
+        {
+            <dl class="kv" style="margin-bottom:1rem">
+                <dt>Signed in as</dt><dd>@status.SignedInUser</dd>
+                <dt>Accounts visible</dt><dd>@Model.Accounts.Count</dd>
+            </dl>
+        }
+
+        <div class="toolbar">
+            @if (status.State == ConnectionState.NotConfigured)
+            {
+                <span class="count-note">
+                    Add the missing settings with <code>dotnet user-secrets</code>, then restart the
+                    application. See the checklist below.
+                </span>
+            }
+            else if (status.State == ConnectionState.Connected)
+            {
+                <form method="post" asp-page-handler="Refresh" style="display:inline">
+                    <button type="submit" class="btn btn--secondary">Refresh account list</button>
+                </form>
+                <form method="post" asp-page-handler="Disconnect" style="display:inline">
+                    <button type="submit" class="btn btn--secondary">Disconnect</button>
+                </form>
+            }
+            else
+            {
+                <form method="post" asp-page-handler="Connect" style="display:inline">
+                    <button type="submit" class="btn btn--primary">
+                        <span aria-hidden="true">🔗</span> Connect to Microsoft Advertising
+                    </button>
+                </form>
+                <span class="count-note">
+                    You will be sent to Microsoft to sign in and grant access. Your password is never seen
+                    by this application.
+                </span>
+            }
+        </div>
+    </div>
+</div>
+
+@if (Model.AccountsError is not null)
+{
+    <div class="notice notice--warning" role="alert">
+        <span class="notice__icon" aria-hidden="true">⚠</span>
+        <div class="notice__body">@Model.AccountsError</div>
+    </div>
+}
+
+@if (Model.Accounts.Count > 0)
+{
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Accessible accounts</h2>
+                <p class="card__note">
+                    These are exactly the accounts the signed-in user can already see in Microsoft
+                    Advertising. A developer token grants no additional access of its own.
+                </p>
+            </div>
+            <span class="count-note">@Model.Accounts.Count account(s)</span>
+        </div>
+        <div class="table-scroll">
+            <table class="data" data-sortable>
+                <caption class="visually-hidden">Advertising accounts the connected user can audit.</caption>
+                <thead>
+                    <tr>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Account <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Account ID <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th scope="col">Number</th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Manager (customer) ID <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th scope="col">Currency</th>
+                        <th scope="col">Time zone</th>
+                        <th scope="col">Status</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var account in Model.Accounts)
+                {
+                    <tr>
+                        <td class="wrap"><strong>@account.AccountName</strong></td>
+                        <td class="num">@account.AccountId</td>
+                        <td>@(account.AccountNumber ?? MetricFormatter.NotAvailable)</td>
+                        <td class="num">@account.CustomerId</td>
+                        <td>@(account.CurrencyCode ?? MetricFormatter.NotAvailable)</td>
+                        <td>@(account.TimeZone ?? MetricFormatter.NotAvailable)</td>
+                        <td>@(account.Status ?? MetricFormatter.NotAvailable)</td>
+                        <td>
+                            <a class="btn btn--secondary btn--small" asp-page="/Index" asp-fragment="generate">Audit</a>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Who can open this application</h2>
+            <p class="card__note">
+                A separate question from the connection above. That authorises the application to
+                <em>read</em> advertising data using one shared account; this controls which
+                <strong>people</strong> may see that data once it is on screen.
+            </p>
+        </div>
+        @if (Model.AppSignIn.Enabled)
+        {
+            <span class="conn conn--live"><span class="conn__dot" aria-hidden="true"></span> Sign-in required</span>
+        }
+        else
+        {
+            <span class="conn conn--error"><span class="conn__dot" aria-hidden="true"></span> No sign-in</span>
+        }
+    </div>
+    <div class="card__body">
+        @if (Model.AppSignIn.Enabled)
+        {
+            <dl class="kv">
+                <dt>Directory (tenant)</dt><dd>@Model.AppSignIn.TenantId</dd>
+                <dt>Restricted to</dt>
+                <dd>
+                    @if (Model.AppSignIn.AllowedUsers.Count == 0)
+                    {
+                        <span>Anyone in that directory</span>
+                    }
+                    else
+                    {
+                        <span>@Model.AppSignIn.AllowedUsers.Count named user(s)</span>
+                    }
+                </dd>
+                <dt>You are signed in as</dt><dd>@(User.Identity?.Name ?? "—")</dd>
+            </dl>
+        }
+        else
+        {
+            <div class="notice notice--warning" role="note">
+                <span class="notice__icon" aria-hidden="true">&#9888;</span>
+                <div class="notice__body">
+                    <span class="notice__title">Anyone who can reach this address can see every client's data</span>
+                    That is acceptable on <code>localhost</code>, and the application refuses to start on a
+                    network-reachable address while sign-in is off. Configure it before sharing this with
+                    colleagues:
+                    <pre style="background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.6rem;overflow-x:auto;font-size:.76rem;margin:.5rem 0 0"><code>cd src/MsAds.Auditor.Web
+dotnet user-secrets set "Auditor:SignIn:Enabled" "true"
+dotnet user-secrets set "Auditor:SignIn:TenantId" "&lt;your directory (tenant) id&gt;"
+dotnet user-secrets set "Auditor:SignIn:ClientId" "&lt;client id&gt;"
+dotnet user-secrets set "Auditor:SignIn:ClientSecret" "&lt;secret&gt;"</code></pre>
+                    <p class="card__note" style="margin-top:.5rem">
+                        Add <code>/signin-oidc</code> and <code>/signout-callback-oidc</code> as redirect
+                        URIs on the registration. You may reuse the Microsoft Advertising registration or
+                        create a second one; sign-in needs only the <code>openid</code>,
+                        <code>profile</code> and <code>email</code> scopes.
+                    </p>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Setup checklist</h2>
+            <p class="card__note">
+                These steps are done once, by a person with the right access. The application cannot do them
+                for you.
+            </p>
+        </div>
+    </div>
+    <div class="card__body">
+        <ol style="padding-left:1.2rem;margin:0">
+            <li style="margin-bottom:.6rem">
+                <strong>Request a developer token.</strong> Sign in as a <strong>Super Admin</strong> at
+                <a href="https://ads.microsoft.com/cc/Settings/DevSettings" target="_blank" rel="noopener">
+                    ads.microsoft.com/cc/Settings/DevSettings</a> and request a token. It is
+                <em>universal</em>: one token covers every account the signed-in user can reach, so an agency
+                needs only one.
+                <span class="sub">Currently: <strong>@(string.IsNullOrWhiteSpace(ads.EffectiveDeveloperToken) ? "not configured" : "configured")</strong></span>
+            </li>
+            <li style="margin-bottom:.6rem">
+                <strong>Register an application.</strong> In the
+                <a href="https://go.microsoft.com/fwlink/?linkid=2083908" target="_blank" rel="noopener">Azure portal
+                    app registrations</a>, choose <strong>New registration</strong>, and under supported account
+                types select <strong>Any Entra ID Tenant + Personal Microsoft accounts</strong>. You must sign in
+                with a work or school account — personal accounts can no longer register applications.
+                <span class="sub">Currently: <strong>@(string.IsNullOrWhiteSpace(ads.ClientId) ? "not configured" : "configured")</strong></span>
+            </li>
+            <li style="margin-bottom:.6rem">
+                <strong>Register it as a web application with a client secret.</strong> Add the redirect URI
+                below, then create a secret under <strong>Certificates &amp; secrets</strong>. A secret is
+                required: refresh tokens issued to a public client are tied to the device that granted them.
+                <span class="sub">Currently: <strong>@(string.IsNullOrWhiteSpace(ads.ClientSecret) ? "not configured" : "configured")</strong></span>
+            </li>
+            <li style="margin-bottom:.6rem">
+                <strong>Add this exact redirect URI</strong> to the registration:
+                <code>@ads.RedirectUri</code>
+            </li>
+            <li>
+                <strong>Store the values outside source control</strong> and restart:
+                <pre style="background:var(--accent-lighter);border:1px solid var(--border);border-radius:var(--radius-sm);padding:.6rem;overflow-x:auto;font-size:.76rem;margin:.4rem 0 0"><code>cd src/MsAds.Auditor.Web
+dotnet user-secrets set "Auditor:Mode" "Live"
+dotnet user-secrets set "Auditor:MicrosoftAdvertising:DeveloperToken" "&lt;token&gt;"
+dotnet user-secrets set "Auditor:MicrosoftAdvertising:ClientId" "&lt;client id&gt;"
+dotnet user-secrets set "Auditor:MicrosoftAdvertising:ClientSecret" "&lt;secret&gt;"</code></pre>
+            </li>
+        </ol>
+
+        <p class="card__note" style="margin-top:1rem">
+            To try the integration before a production token is approved, set
+            <code>Auditor:MicrosoftAdvertising:Environment</code> to <code>Sandbox</code>. Sandbox accepts the
+            universal developer token automatically and uses entirely separate credentials and data from
+            production.
+        </p>
+    </div>
+</div>

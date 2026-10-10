@@ -1,0 +1,126 @@
+@page
+@model HistoryModel
+@{
+    ViewData["Title"] = "Report History";
+}
+
+@if (Model.Expired)
+{
+    <div class="notice notice--warning" role="alert">
+        <span class="notice__icon" aria-hidden="true">⚠</span>
+        <div class="notice__body">
+            <span class="notice__title">That report is no longer held</span>
+            Reports are kept in memory only, so they are cleared when the application restarts and the oldest
+            are dropped beyond the retention limit. Re-run it below, or generate a new one.
+        </div>
+    </div>
+}
+
+@if (Model.Outcome is { Succeeded: false } failure)
+{
+    <div class="notice notice--error" role="alert">
+        <span class="notice__icon" aria-hidden="true">⛔</span>
+        <div class="notice__body">
+            <span class="notice__title">@failure.ErrorTitle</span>
+            @failure.ErrorDetail
+            @if (failure.ErrorRemedy is not null)
+            {
+                <div style="margin-top:.35rem"><strong>What to do:</strong> @failure.ErrorRemedy</div>
+            }
+        </div>
+    </div>
+}
+
+<div class="card">
+    <div class="card__head">
+        <div>
+            <h2>Previously generated reports</h2>
+            <p class="card__note">
+                The most recent @Model.Options.ReportHistoryLimit report(s) are retained in memory. Nothing is
+                written to disk, so client performance data does not persist beyond the running process.
+            </p>
+        </div>
+        <span class="count-note">@Model.Reports.Count report(s) held</span>
+    </div>
+
+    @if (Model.Reports.Count == 0)
+    {
+        <div class="card__body">
+            <div class="empty">
+                <span class="empty__icon" aria-hidden="true">🕘</span>
+                <h2>No reports generated yet</h2>
+                <p>Generate a report from the dashboard and it will be listed here.</p>
+                <a class="btn btn--primary" asp-page="/Index" asp-fragment="generate">Go to the dashboard</a>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div class="table-scroll">
+            <table class="data" data-sortable>
+                <caption class="visually-hidden">Reports generated in this session.</caption>
+                <thead>
+                    <tr>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Generated <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Account <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th scope="col">Reporting period</th>
+                        <th scope="col">Comparison</th>
+                        <th scope="col">Analyses</th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Spend <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Findings <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th scope="col">Source</th>
+                        <th scope="col"><span class="visually-hidden">Actions</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var report in Model.Reports)
+                {
+                    var analyses = new List<string>();
+                    if (report.Selection.Campaigns) analyses.Add("Campaigns");
+                    if (report.Selection.SearchTerms) analyses.Add("Search terms");
+                    if (report.Selection.Keywords) analyses.Add("Keywords");
+                    if (report.Selection.ChangeHistory) analyses.Add("Changes");
+                    if (report.Selection.NegativeKeywordConflicts) analyses.Add("Conflicts");
+
+                    <tr>
+                        <td data-sort="@report.GeneratedAt.ToUnixTimeSeconds()">
+                            @report.GeneratedAt.ToString("d MMM yyyy HH:mm:ss")
+                            <span class="sub">UTC · @report.Duration.TotalSeconds.ToString("N2")s to build</span>
+                        </td>
+                        <td class="wrap">
+                            <strong>@report.Account.AccountName</strong>
+                            <span class="sub">ID @report.Account.AccountId</span>
+                        </td>
+                        <td>
+                            @report.DateRangeLabel
+                            <span class="sub">@report.Period.Current.Days days · @report.Period.TimeZoneId</span>
+                        </td>
+                        <td>@report.ComparisonLabel</td>
+                        <td class="wrap"><span class="sub">@(string.Join(", ", analyses))</span></td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(report.Current.Spend)">@report.Formatter.FormatCurrency(report.Current.Spend)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(report.Recommendations.Findings.Count)">@report.Recommendations.Findings.Count</td>
+                        <td>
+                            @if (report.IsDemo)
+                            {
+                                <span class="badge badge--warning"><span aria-hidden="true">⚠</span> Demo</span>
+                            }
+                            else
+                            {
+                                <span class="badge badge--positive"><span aria-hidden="true">✓</span> Live</span>
+                            }
+                        </td>
+                        <td>
+                            <div class="toolbar">
+                                <a class="btn btn--secondary btn--small" asp-page="/Index" asp-route-report="@report.ReportId">View</a>
+                                <form method="post" asp-page-handler="Rerun" asp-route-id="@report.ReportId" data-progress style="display:inline">
+                                    <button type="submit" class="btn btn--secondary btn--small" data-submit-progress>Re-run</button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

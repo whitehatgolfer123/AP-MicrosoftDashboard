@@ -1,0 +1,112 @@
+@page
+@model RecommendationsModel
+@{
+    ViewData["Title"] = "Recommendations";
+    var report = Model.Report;
+}
+
+@if (report is null)
+{
+    @await Html.PartialAsync("_NoReport", Model.ReportExpired)
+}
+else
+{
+    var result = report.Recommendations;
+    var groups = new (FindingSeverity Severity, string Heading, string Blurb)[]
+    {
+        (FindingSeverity.Critical, "Needs attention now", "Likely to be costing money in this period."),
+        (FindingSeverity.Warning, "Investigate", "Worth a closer look before acting."),
+        (FindingSeverity.Positive, "Performing well", "Where results are strong enough to consider building on."),
+        (FindingSeverity.Information, "Information", "Context rather than a problem."),
+    };
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Recommendations</h2>
+                <p class="card__note">
+                    @result.Findings.Count finding(s) from @result.RulesEvaluated deterministic rule(s). Every
+                    threshold is configurable, and every finding states its supporting data, the reason it was
+                    flagged, the suggested action and its caveats.
+                </p>
+            </div>
+            <a class="btn btn--secondary btn--small" asp-page="/Export"
+               asp-route-report="@report.ReportId" asp-route-section="recommendations">
+                <span aria-hidden="true">⤓</span> Export CSV
+            </a>
+        </div>
+        <div class="card__body">
+            <div class="tiles" style="margin-bottom:0">
+                @foreach (var (severity, heading, _) in groups)
+                {
+                    <div class="tile">
+                        <span class="tile__label">@heading</span>
+                        <span class="tile__value">@result.CountOf(severity)</span>
+                        <span class="tile__previous">
+                            <span class="badge badge--@ViewHelpers.SeverityClass(severity)">
+                                <span aria-hidden="true">@ViewHelpers.SeverityIcon(severity)</span>
+                                @ViewHelpers.SeverityLabel(severity)
+                            </span>
+                        </span>
+                    </div>
+                }
+            </div>
+
+            @if (!report.Settings.HasTargetCpa && !report.Settings.HasTargetRoas)
+            {
+                <div class="notice notice--info" role="note" style="margin-top:1rem">
+                    <span class="notice__icon" aria-hidden="true">ℹ</span>
+                    <div class="notice__body">
+                        <span class="notice__title">No commercial targets configured</span>
+                        Without a target CPA or ROAS, the target-based rules are switched off and performance is
+                        described relative to this account's own averages rather than judged against an
+                        objective the application cannot know.
+                        <a asp-page="/Settings">Set targets in Settings</a> to enable them.
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+
+    @foreach (var (severity, heading, blurb) in groups)
+    {
+        var findings = result.OfSeverity(severity).ToList();
+
+        if (findings.Count == 0)
+        {
+            continue;
+        }
+
+        <h2 style="margin:1.5rem 0 .3rem">
+            <span class="badge badge--@ViewHelpers.SeverityClass(severity)">
+                <span aria-hidden="true">@ViewHelpers.SeverityIcon(severity)</span> @heading
+            </span>
+            <span class="count-note" style="font-weight:400">@findings.Count</span>
+        </h2>
+        <p class="count-note" style="margin-bottom:.75rem">@blurb</p>
+
+        @foreach (var finding in findings)
+        {
+            @await Html.PartialAsync("_Finding", finding)
+        }
+    }
+
+    @if (result.Findings.Count == 0)
+    {
+        <div class="card">
+            <div class="card__body">
+                <div class="empty">
+                    <span class="empty__icon" aria-hidden="true">✓</span>
+                    <h2>Nothing crossed a threshold</h2>
+                    <p>
+                        No rule fired for this period. That is not a clean bill of health: review the data
+                        limitations below, and consider whether the thresholds suit this account.
+                    </p>
+                    <a class="btn btn--secondary" asp-page="/Settings">Review thresholds</a>
+                </div>
+            </div>
+        </div>
+    }
+
+    @await Html.PartialAsync("_Notices", report.Notices)
+}

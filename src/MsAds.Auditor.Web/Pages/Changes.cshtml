@@ -1,0 +1,163 @@
+@page
+@model ChangesModel
+@{
+    ViewData["Title"] = "Change History";
+    var report = Model.Report;
+}
+
+@if (report is null)
+{
+    @await Html.PartialAsync("_NoReport", Model.ReportExpired)
+}
+else
+{
+    var formatter = report.Formatter;
+    var changeFindings = report.Recommendations.Findings
+        .Where(f => f.Category == FindingCategories.Changes)
+        .ToList();
+
+    <div class="notice notice--info" role="note">
+        <span class="notice__icon" aria-hidden="true">ℹ</span>
+        <div class="notice__body">
+            <span class="notice__title">How to read this section</span>
+            Only changes that the Microsoft Advertising change history records are shown. Changes it does not
+            expose, and historical settings it does not retain, are not available through the API and are not
+            reconstructed here. Where a change sits close in time to a performance shift, that is reported as
+            a possible association — not as cause.
+        </div>
+    </div>
+
+    @if (report.ChangeHistoryUnavailable)
+    {
+        <div class="notice notice--error" role="alert">
+            <span class="notice__icon" aria-hidden="true">⛔</span>
+            <div class="notice__body">
+                <span class="notice__title">Change history could not be retrieved</span>
+                The change history report was unavailable for this period, so no change could be compared
+                against performance.
+            </div>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Recorded changes</h2>
+                <p class="card__note">@report.Changes.Count change(s) recorded during @report.DateRangeLabel, most recent first.</p>
+            </div>
+            <a class="btn btn--secondary btn--small" asp-page="/Export"
+               asp-route-report="@report.ReportId" asp-route-section="changes">
+                <span aria-hidden="true">⤓</span> Export CSV
+            </a>
+        </div>
+
+        @if (report.Changes.Count == 0)
+        {
+            <div class="card__body">
+                <div class="empty">
+                    <span class="empty__icon" aria-hidden="true">⟳</span>
+                    <p>
+                        @if (!report.Selection.ChangeHistory)
+                        {
+                            @:The change history analysis was not selected for this report.
+                        }
+                        else if (report.ChangeHistoryUnavailable)
+                        {
+                            @:The change history could not be retrieved, so nothing can be shown.
+                        }
+                        else
+                        {
+                            @:No changes were recorded in this period.
+                        }
+                    </p>
+                </div>
+            </div>
+        }
+        else
+        {
+            <div class="card__body">
+                <div class="filters" data-filters-for="change-table">
+                    <div class="field">
+                        <label for="change-search">Search</label>
+                        <input type="search" id="change-search" data-filter-field="text" placeholder="Entity, attribute, user…" />
+                    </div>
+                    <div class="field">
+                        <label for="change-type">Entity type</label>
+                        <select id="change-type" data-filter-field="entity">
+                            <option value="">All</option>
+                            @foreach (var entityType in report.Changes.Select(c => c.EntityType).Distinct().OrderBy(e => e))
+                            {
+                                <option value="@entityType.ToLowerInvariant()">@entityType</option>
+                            }
+                        </select>
+                    </div>
+                    <button type="button" class="btn btn--secondary btn--small" data-filter-reset>Reset</button>
+                    <span class="count-note" data-filter-count="change-table"></span>
+                </div>
+            </div>
+
+            <div class="table-scroll">
+                <table class="data" id="change-table" data-sortable>
+                    <caption class="visually-hidden">Changes recorded during @report.DateRangeLabel.</caption>
+                    <thead>
+                        <tr>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Date and time <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Entity <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Change <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                            <th scope="col">Before</th>
+                            <th scope="col">After</th>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Changed by <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var change in report.Changes)
+                    {
+                        <tr data-entity="@change.EntityType.ToLowerInvariant()">
+                            <td data-sort="@change.ChangedAt.ToUnixTimeSeconds()">
+                                @formatter.FormatDateTime(change.ChangedAt)
+                                <span class="sub">account time zone</span>
+                            </td>
+                            <td class="wrap">
+                                <strong>@(change.EntityName ?? change.EntityType)</strong>
+                                <span class="sub">
+                                    @change.EntityType@(change.CampaignName is null ? "" : " · " + change.CampaignName)@(change.AdGroupName is null ? "" : " › " + change.AdGroupName)
+                                </span>
+                            </td>
+                            <td class="wrap">
+                                @(change.AttributeChanged ?? "Setting")
+                                <span class="sub">@(change.HowChanged ?? "changed")</span>
+                            </td>
+                            <td>@(change.OldValue ?? MetricFormatter.NotAvailable)</td>
+                            <td>@(change.NewValue ?? MetricFormatter.NotAvailable)</td>
+                            <td class="wrap">@(change.ChangedBy ?? MetricFormatter.NotAvailable)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <h2>Changes that may be associated with performance shifts</h2>
+            <span class="count-note">@changeFindings.Count possible association(s)</span>
+        </div>
+        <div class="card__body">
+            @if (changeFindings.Count == 0)
+            {
+                <p class="count-note">
+                    No recorded change sat close enough in time to a significant performance shift to be worth
+                    reporting. This is not evidence that the changes had no effect.
+                </p>
+            }
+            else
+            {
+                @foreach (var finding in changeFindings)
+                {
+                    @await Html.PartialAsync("_Finding", finding)
+                }
+            }
+        </div>
+    </div>
+}

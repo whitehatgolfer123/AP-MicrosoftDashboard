@@ -1,0 +1,210 @@
+@page
+@model KeywordsModel
+@{
+    ViewData["Title"] = "Keyword Analysis";
+    var report = Model.Report;
+}
+
+@if (report is null)
+{
+    @await Html.PartialAsync("_NoReport", Model.ReportExpired)
+}
+else
+{
+    var formatter = report.Formatter;
+    var keywordFindings = report.Recommendations.Findings.Where(f => f.EntityType == "Keyword").ToList();
+    var conflicts = report.NegativeKeywordConflicts;
+
+    @if (!report.Selection.Keywords)
+    {
+        <div class="notice notice--info" role="note">
+            <span class="notice__icon" aria-hidden="true">ℹ</span>
+            <div class="notice__body">
+                <span class="notice__title">Keyword analysis was not selected</span>
+                Generate a new report with "Keyword performance" selected to see this section.
+            </div>
+        </div>
+    }
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Keyword performance</h2>
+                <p class="card__note">
+                    @report.Keywords.Count keyword(s) for @report.DateRangeLabel. Thresholds are configurable:
+                    no keyword is judged against a universal rule, and conversion volume is taken into account.
+                </p>
+            </div>
+            <a class="btn btn--secondary btn--small" asp-page="/Export"
+               asp-route-report="@report.ReportId" asp-route-section="keywords">
+                <span aria-hidden="true">⤓</span> Export CSV
+            </a>
+        </div>
+
+        <div class="card__body">
+            <div class="filters" data-filters-for="keyword-table">
+                <div class="field">
+                    <label for="keyword-search">Search</label>
+                    <input type="search" id="keyword-search" data-filter-field="text" placeholder="Keyword, campaign…" />
+                </div>
+                <div class="field">
+                    <label for="keyword-campaign">Campaign</label>
+                    <select id="keyword-campaign" data-filter-field="campaign">
+                        <option value="">All campaigns</option>
+                        @foreach (var context in report.Keywords.Select(k => k.Context).Where(c => c is not null).Distinct().OrderBy(c => c))
+                        {
+                            <option value="@context?.ToLowerInvariant()">@context</option>
+                        }
+                    </select>
+                </div>
+                <button type="button" class="btn btn--secondary btn--small" data-filter-reset>Reset</button>
+                <span class="count-note" data-filter-count="keyword-table"></span>
+            </div>
+        </div>
+
+        <div class="table-scroll">
+            <table class="data" id="keyword-table" data-sortable>
+                <caption class="visually-hidden">Keyword performance for @report.DateRangeLabel.</caption>
+                <thead>
+                    <tr>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Keyword <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable" aria-sort="none" scope="col"><button type="button">Campaign / ad group <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Quality <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Impr. <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Clicks <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">CTR <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Spend <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Avg CPC <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">Conv. <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                        <th class="sortable num" aria-sort="none" scope="col"><button type="button">CPA <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                    </tr>
+                </thead>
+                <tbody>
+                @foreach (var keyword in report.Keywords)
+                {
+                    var current = keyword.Current;
+                    var cpcDelta = keyword.Delta(MetricKey.AverageCpc);
+                    var ctrDelta = keyword.Delta(MetricKey.ClickThroughRate);
+                    var cpaDelta = keyword.Delta(MetricKey.CostPerAcquisition);
+
+                    <tr data-campaign="@keyword.Context?.ToLowerInvariant()">
+                        <td class="wrap">
+                            <strong>@keyword.Name</strong>
+                            <span class="sub">ID @keyword.EntityId@(keyword.Status is null ? "" : " · " + keyword.Status)</span>
+                        </td>
+                        <td class="wrap">@(keyword.Context ?? MetricFormatter.NotAvailable)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(keyword.QualityScore)">@(keyword.QualityScore is null ? MetricFormatter.NotAvailable : keyword.QualityScore.Value.ToString("N0"))</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Impressions)">@formatter.FormatInteger(current.Impressions)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Clicks)">@formatter.FormatInteger(current.Clicks)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.ClickThroughRate)">
+                            @formatter.FormatPercent(current.ClickThroughRate)
+                            @if (ctrDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(ctrDelta)</span>
+                            }
+                        </td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Spend)">@formatter.FormatCurrency(current.Spend)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.AverageCpc)">
+                            @formatter.FormatCurrency(current.AverageCpc)
+                            @if (cpcDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(cpcDelta)</span>
+                            }
+                        </td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.Conversions)">@formatter.FormatInteger(current.Conversions)</td>
+                        <td class="num" data-sort="@ViewHelpers.SortValue(current.CostPerAcquisition)">
+                            @formatter.FormatCurrency(current.CostPerAcquisition)
+                            @if (cpaDelta.HasComparison)
+                            {
+                                <span class="sub">@formatter.FormatChange(cpaDelta)</span>
+                            }
+                        </td>
+                    </tr>
+                }
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <div>
+                <h2>Keyword and negative keyword conflicts</h2>
+                <p class="card__note">
+                    Reported directly by Microsoft Advertising: these keywords cannot serve because one of the
+                    account's own negative keywords blocks them.
+                </p>
+            </div>
+            <span class="count-note">@conflicts.Count conflict(s)</span>
+        </div>
+        @if (conflicts.Count == 0)
+        {
+            <div class="card__body">
+                <p class="count-note">
+                    @if (report.Selection.NegativeKeywordConflicts)
+                    {
+                        @:No conflicts were reported for this account.
+                    }
+                    else
+                    {
+                        @:The negative keyword conflict analysis was not selected for this report.
+                    }
+                </p>
+            </div>
+        }
+        else
+        {
+            <div class="table-scroll">
+                <table class="data" data-sortable>
+                    <caption class="visually-hidden">Keywords blocked by the account's own negative keywords.</caption>
+                    <thead>
+                        <tr>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Keyword <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Blocked by <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                            <th scope="col">Level</th>
+                            <th class="sortable" aria-sort="none" scope="col"><button type="button">Campaign <span class="arrow" aria-hidden="true">⇅</span></button></th>
+                            <th scope="col">Ad group</th>
+                            <th scope="col">Negative keyword list</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    @foreach (var conflict in conflicts)
+                    {
+                        <tr>
+                            <td class="wrap"><strong>@conflict.Keyword</strong></td>
+                            <td class="wrap">@conflict.NegativeKeyword</td>
+                            <td>@(conflict.ConflictLevel ?? MetricFormatter.NotAvailable)</td>
+                            <td class="wrap">@(conflict.CampaignName ?? MetricFormatter.NotAvailable)</td>
+                            <td>@(conflict.AdGroupName ?? MetricFormatter.NotAvailable)</td>
+                            <td>@(conflict.NegativeKeywordListName ?? MetricFormatter.NotAvailable)</td>
+                        </tr>
+                    }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+
+    <div class="card">
+        <div class="card__head">
+            <h2>Keyword findings</h2>
+            <span class="count-note">@keywordFindings.Count finding(s) at keyword level</span>
+        </div>
+        <div class="card__body">
+            @if (keywordFindings.Count == 0)
+            {
+                <p class="count-note">
+                    No keyword crossed a configured threshold. Thresholds deliberately require enough spend,
+                    clicks and conversions before a keyword is judged.
+                </p>
+            }
+            else
+            {
+                @foreach (var finding in keywordFindings)
+                {
+                    @await Html.PartialAsync("_Finding", finding)
+                }
+            }
+        </div>
+    </div>
+}

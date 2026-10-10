@@ -1,0 +1,33 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MsAds.Auditor.Core\MsAds.Auditor.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.BingAds.SDK" Version="13.0.30" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Data Protection is used to encrypt the stored refresh token. Taken from the shared
+         framework rather than as a NuGet package: pulling Microsoft.AspNetCore.* packages into a
+         class library that a web app references mixes framework and package assemblies, which
+         breaks Razor tag helper discovery in the referencing web project. -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The tests pin the account-to-reporting time zone mapping, which is an implementation
+         detail rather than public API. -->
+    <AssemblyAttribute Include="System.Runtime.CompilerServices.InternalsVisibleToAttribute">
+      <_Parameter1>MsAds.Auditor.Tests</_Parameter1>
+    </AssemblyAttribute>
+  </ItemGroup>
+
+</Project>

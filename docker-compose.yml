@@ -1,27 +1,28 @@
 # ============================================================================
-# Local development stack: the application plus a PostgreSQL instance.
+# Local development stack.
 #
-# Phase 0 of ROADMAP.md asks for Docker Compose so PostgreSQL is available
-# locally without installing a server; Phase 1 and Phase 5 of the delivery
-# order use it for the change log, scheduled results and settings.
+# Phase 0 of ROADMAP.md asks for a Docker Compose definition; this is it.
 #
-#   docker compose up --build        # app on http://localhost:5114
-#   docker compose up -d db          # just the database, app from ./start.sh
-#   docker compose down -v           # stop and delete the database volume
+#   docker compose up --build                     # app on http://localhost:5114
+#   docker compose --profile postgres up -d db     # PostgreSQL only (see note below)
+#   docker compose down -v                         # stop and delete the volumes
 #
-# NOTE ON THE DATABASE: the application's default persistence provider is
-# SQLite, which needs no server at all and is what a single-machine agency
-# deployment should use. PostgreSQL is here because the roadmap targets it for
-# hosted environments, and because testing against both providers is how the
-# EF Core layer stays genuinely provider-neutral. The credentials below are
+# NOTE ON THE DATABASE: the application stores its change log, thresholds and
+# scan verdicts in SQLite — no server, one file, free. That is what the `app`
+# service uses. The `postgres` profile brings up a PostgreSQL instance for the
+# hosted-deployment work in ROADMAP.md Phase 27; the application cannot use it
+# yet (see the PostgreSQL note in README.md). The credentials below are
 # local-only development values and are deliberately not secret.
 # ============================================================================
 
 name: msads-auditor
 
 services:
+  # Opt-in: `docker compose --profile postgres up db`. Here so that the PostgreSQL work in
+  # ROADMAP.md Phase 27 has somewhere to start, not because the application uses it yet.
   db:
     image: postgres:17-alpine
+    profiles: ["postgres"]
     restart: unless-stopped
     environment:
       POSTGRES_DB: msads_auditor
@@ -46,9 +47,6 @@ services:
       context: .
       target: final
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       ASPNETCORE_URLS: http://+:8080
@@ -56,12 +54,17 @@ services:
       # demo everywhere. Switch to Live only with real credentials supplied
       # out of band (user secrets or the environment), never in this file.
       Auditor__Mode: Demo
-      Auditor__Persistence__Provider: Postgres
-      Auditor__Persistence__ConnectionString: >-
-        Host=db;Port=5432;Database=msads_auditor;Username=msads;Password=local-development-only
+      # SQLite, held on a named volume so the change log survives `docker compose down`.
+      # NOT PostgreSQL: the migrations in MsAds.Auditor.Data are generated for SQLite and
+      # selecting Postgres throws on startup by design. See the PostgreSQL note in README.md.
+      Auditor__Persistence__Provider: Sqlite
+      Auditor__Persistence__ConnectionString: Data Source=/data/msads-auditor.db
+    volumes:
+      - app-data:/data
     ports:
       # 5114 matches the registered OAuth redirect URI.
       - "127.0.0.1:5114:8080"
 
 volumes:
+  app-data:
   db-data:

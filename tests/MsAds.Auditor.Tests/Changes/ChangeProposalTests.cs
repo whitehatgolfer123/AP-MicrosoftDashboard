@@ -173,37 +173,39 @@ public class ChangeProposalTests
     }
 
     [Fact]
-    public void The_change_log_keeps_runs_newest_first()
+    public async Task The_change_log_keeps_runs_newest_first()
     {
         var log = new InMemoryChangeLog();
 
-        log.Record(Run(TestData.FixedNow.AddMinutes(-10)));
-        log.Record(Run(TestData.FixedNow));
+        await log.RecordAsync(Run(TestData.FixedNow.AddMinutes(-10)));
+        await log.RecordAsync(Run(TestData.FixedNow));
 
-        Assert.Equal(2, log.All.Count);
-        Assert.Equal(TestData.FixedNow, log.All[0].RanAt);
+        var runs = await log.RecentAsync();
+
+        Assert.Equal(2, runs.Count);
+        Assert.Equal(TestData.FixedNow, runs[0].RanAt);
     }
 
     [Fact]
-    public void The_change_log_is_bounded_so_it_cannot_grow_without_limit()
+    public async Task The_change_log_is_bounded_so_it_cannot_grow_without_limit()
     {
         var log = new InMemoryChangeLog(limit: 3);
 
         for (var i = 0; i < 10; i++)
         {
-            log.Record(Run(TestData.FixedNow.AddMinutes(i)));
+            await log.RecordAsync(Run(TestData.FixedNow.AddMinutes(i)));
         }
 
-        Assert.Equal(3, log.All.Count);
+        Assert.Equal(3, (await log.RecentAsync()).Count);
     }
 
     [Fact]
-    public void The_log_reports_which_changes_have_already_been_applied_to_an_account()
+    public async Task The_log_reports_which_changes_have_already_been_applied_to_an_account()
     {
         var log = new InMemoryChangeLog();
         var change = Proposal(ChangeRisk.Additive);
 
-        log.Record(new ChangeRunResult
+        await log.RecordAsync(new ChangeRunResult
         {
             RunId = Guid.NewGuid(),
             RanAt = TestData.FixedNow,
@@ -213,16 +215,16 @@ public class ChangeProposalTests
             Outcomes = [new ChangeOutcome(change, ChangeStatus.Applied, "done")],
         });
 
-        Assert.Contains(change.Id, log.AppliedChangeIds(change.AccountId));
+        Assert.Contains(change.Id, await log.AppliedChangeIdsAsync(change.AccountId));
     }
 
     [Fact]
-    public void A_preview_does_not_count_as_applied()
+    public async Task A_preview_does_not_count_as_applied()
     {
         var log = new InMemoryChangeLog();
         var change = Proposal(ChangeRisk.Additive);
 
-        log.Record(new ChangeRunResult
+        await log.RecordAsync(new ChangeRunResult
         {
             RunId = Guid.NewGuid(),
             RanAt = TestData.FixedNow,
@@ -233,16 +235,16 @@ public class ChangeProposalTests
         });
 
         // Otherwise reviewing a change would remove it from the list without applying it.
-        Assert.Empty(log.AppliedChangeIds(change.AccountId));
+        Assert.Empty(await log.AppliedChangeIdsAsync(change.AccountId));
     }
 
     [Fact]
-    public void A_failed_change_stays_available_to_retry()
+    public async Task A_failed_change_stays_available_to_retry()
     {
         var log = new InMemoryChangeLog();
         var change = Proposal(ChangeRisk.Additive);
 
-        log.Record(new ChangeRunResult
+        await log.RecordAsync(new ChangeRunResult
         {
             RunId = Guid.NewGuid(),
             RanAt = TestData.FixedNow,
@@ -252,16 +254,16 @@ public class ChangeProposalTests
             Outcomes = [new ChangeOutcome(change, ChangeStatus.Failed, "rejected")],
         });
 
-        Assert.Empty(log.AppliedChangeIds(change.AccountId));
+        Assert.Empty(await log.AppliedChangeIdsAsync(change.AccountId));
     }
 
     [Fact]
-    public void Applied_ids_are_scoped_to_their_own_account()
+    public async Task Applied_ids_are_scoped_to_their_own_account()
     {
         var log = new InMemoryChangeLog();
         var change = Proposal(ChangeRisk.Additive);
 
-        log.Record(new ChangeRunResult
+        await log.RecordAsync(new ChangeRunResult
         {
             RunId = Guid.NewGuid(),
             RanAt = TestData.FixedNow,
@@ -271,7 +273,7 @@ public class ChangeProposalTests
             Outcomes = [new ChangeOutcome(change, ChangeStatus.Applied, "done")],
         });
 
-        Assert.Empty(log.AppliedChangeIds(accountId: 999));
+        Assert.Empty(await log.AppliedChangeIdsAsync(accountId: 999));
     }
 
     [Fact]

@@ -59,7 +59,7 @@ public class SettingsModel(
 
     public void OnGet() => Settings = settingsStore.Current;
 
-    public IActionResult OnPost()
+    public async Task<IActionResult> OnPostAsync(CancellationToken cancellationToken)
     {
         var errors = Settings.Validate();
 
@@ -69,7 +69,10 @@ public class SettingsModel(
             return Page();
         }
 
-        settingsStore.Update(Settings);
+        // Awaited rather than fired and forgotten: the thresholds are written through to the
+        // database, and a failed write must surface here rather than as a setting that silently
+        // reverts on the next restart.
+        await settingsStore.UpdateAsync(Settings, CurrentUser(), cancellationToken);
         Saved = true;
         return Page();
     }
@@ -140,11 +143,14 @@ public class SettingsModel(
         return Page();
     }
 
-    public IActionResult OnPostReset()
+    public async Task<IActionResult> OnPostResetAsync(CancellationToken cancellationToken)
     {
-        settingsStore.ResetToDefaults();
+        await settingsStore.ResetToDefaultsAsync(cancellationToken);
         Settings = settingsStore.Current;
         Saved = true;
         return Page();
     }
+
+    /// <summary>The signed-in person, recorded against a threshold change. Null when sign-in is off.</summary>
+    private string? CurrentUser() => User.Identity?.IsAuthenticated == true ? User.Identity.Name : null;
 }

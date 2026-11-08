@@ -33,7 +33,12 @@ public class ApplyModel(
     /// <summary>Outcome of a preview or an apply run.</summary>
     public ChangeRunResult? Result { get; private set; }
 
-    public IReadOnlyList<ChangeRunResult> History => changeLog.All;
+    /// <summary>
+    /// Previous apply runs, loaded by the handler. Not a computed property: the change log is
+    /// database-backed, and reading it while the view renders would mean a blocking query in the
+    /// middle of rendering.
+    /// </summary>
+    public IReadOnlyList<ChangeRunResult> History { get; private set; } = [];
 
     public string? ErrorMessage { get; private set; }
 
@@ -50,17 +55,19 @@ public class ApplyModel(
     [BindProperty]
     public bool Confirmed { get; set; }
 
-    public void OnGet()
+    public async Task OnGetAsync(CancellationToken cancellationToken)
     {
         LoadReport();
-        LoadProposals();
+        await LoadProposalsAsync(cancellationToken);
+        await LoadHistoryAsync(cancellationToken);
     }
 
     /// <summary>Step two: show exactly what the selected changes would do, without sending them.</summary>
     public async Task<IActionResult> OnPostReviewAsync(CancellationToken cancellationToken)
     {
         LoadReport();
-        LoadProposals();
+        await LoadProposalsAsync(cancellationToken);
+        await LoadHistoryAsync(cancellationToken);
 
         var selected = Selected();
 
@@ -92,7 +99,8 @@ public class ApplyModel(
     public async Task<IActionResult> OnPostApplyAsync(CancellationToken cancellationToken)
     {
         LoadReport();
-        LoadProposals();
+        await LoadProposalsAsync(cancellationToken);
+        await LoadHistoryAsync(cancellationToken);
 
         var selected = Selected();
         ForReview = selected;
@@ -139,7 +147,9 @@ public class ApplyModel(
                 .ApplyAsync(selected, CurrentUser(), preview: false, cancellationToken)
                 .ConfigureAwait(false);
 
-            changeLog.Record(Result);
+            // Recorded before the proposal list is rebuilt, because rebuilding it reads the
+            // log back to drop what has just been applied.
+            await changeLog.RecordAsync(Result, cancellationToken);
 
             logger.LogWarning(
                 "Change run {RunId} by {User}: {Applied} applied, {Failed} failed on account {AccountId}",
@@ -147,7 +157,8 @@ public class ApplyModel(
                 Result.AccountId);
 
             // Applied changes drop out of the proposal list; the report behind them is now stale.
-            LoadProposals();
+            await LoadProposalsAsync(cancellationToken);
+            await LoadHistoryAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -166,7 +177,7 @@ public class ApplyModel(
     /// an applied change would stay on the list and could be sent a second time, because the
     /// report behind it is a snapshot taken before the change landed.
     /// </summary>
-    private void LoadProposals()
+    private async Task LoadProposalsAsync(CancellationToken cancellationToken)
     {
         if (Report is null)
         {
@@ -174,12 +185,17 @@ public class ApplyModel(
             return;
         }
 
-        var alreadyApplied = changeLog.AppliedChangeIds(Report.Account.AccountId);
+        var alreadyApplied = await changeLog
+            .AppliedChangeIdsAsync(Report.Account.AccountId, cancellationToken)
+            .ConfigureAwait(false);
 
         var all = ChangeProposalBuilder.Build(Report);
         Proposals = [.. all.Where(p => !alreadyApplied.Contains(p.Id))];
         AlreadyAppliedCount = all.Count - Proposals.Count;
     }
+
+    private async Task LoadHistoryAsync(CancellationToken cancellationToken)
+        => History = await changeLog.RecentAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
 
     /// <summary>The signed-in person, for the audit trail. Null when sign-in is not enabled.</summary>
     private string? CurrentUser() => User.Identity?.IsAuthenticated == true ? User.Identity.Name : null;

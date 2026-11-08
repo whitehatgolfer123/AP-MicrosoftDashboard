@@ -1,0 +1,60 @@
+<Project>
+
+  <!-- ===========================================================================
+       Central package version management.
+
+       Every package version for the solution is declared here once, and the
+       .csproj files reference packages without a Version attribute. Before this
+       file existed the versions were spread across five project files, which is
+       how the EF Core dependency arrived as a package downgrade: EF Core 10.0.14
+       pulls Microsoft.Extensions.* 10.0.14, while the projects pinned 10.0.12.
+
+       Keep the Microsoft.Extensions.* and EF Core versions in step with each
+       other, and with the SDK band in global.json.
+       =========================================================================== -->
+
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+
+    <!-- A PackageReference that forgets to drop its Version attribute is a build
+         error rather than a silent override of this file. -->
+    <CentralPackageVersionOverrideEnabled>false</CentralPackageVersionOverrideEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Microsoft.Extensions and ASP.NET Core">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.OpenIdConnect" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Binder" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Options.ConfigurationExtensions" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Extensions.Options.DataAnnotations" Version="10.0.14" />
+  </ItemGroup>
+
+  <ItemGroup Label="Persistence">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup Label="Microsoft Advertising">
+    <PackageVersion Include="Microsoft.BingAds.SDK" Version="13.0.30" />
+  </ItemGroup>
+
+  <ItemGroup Label="AI providers (optional commentary)">
+    <PackageVersion Include="Anthropic" Version="12.55.0" />
+    <PackageVersion Include="OpenAI" Version="2.14.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <PackageVersion Include="coverlet.collector" Version="6.0.4" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageVersion Include="xunit" Version="2.9.3" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+</Project>

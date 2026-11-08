@@ -13,6 +13,15 @@ artifacts/
 .idea/
 *.swp
 
+# Local databases. The real one lives under the user's local application data, outside this
+# repository, but a design-time or stray file must never be committed: the change log names
+# client accounts.
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
 # Credentials and local state — never commit these.
 # The AI API key and the Microsoft Advertising refresh token are stored encrypted
 # under the user's local application data, outside this repository, and user

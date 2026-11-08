@@ -434,11 +434,106 @@ it, and should only be used on a trusted isolated network.
 - Reports are held **in memory only** and cleared on restart, so client performance data is not
   written to disk. Report files downloaded from the Reporting API are written to a temporary
   directory and deleted immediately after parsing.
+- What *is* stored is deliberately limited: the change log, the analysis thresholds, and portfolio
+  scan verdicts. See *Persistence* below.
 - The Microsoft Advertising refresh token is encrypted at rest with ASP.NET Core Data Protection,
   or held in memory only when `PersistRefreshToken` is `false`.
 - Access to the application itself is controlled by Entra ID sign-in, as above.
 - Writing to advertising accounts is disabled by default, gated by two separate switches, and
   always requires an explicit per-item confirmation. Every run is recorded in the change log.
+
+---
+
+## Persistence
+
+Most of the application is deliberately stateless. What survives a restart is limited to three
+things, and the limit is a privacy decision rather than an oversight:
+
+| Stored | Why |
+|---|---|
+| The change log | It records what this tool altered in a client's account and who authorised it. If a client asks what changed last Tuesday, there has to be an answer. |
+| Analysis thresholds | Operator preferences. Re-entering them after every restart is a nuisance, and they are not client data. |
+| Portfolio scan verdicts | So a scan can say which accounts have got *worse* since the last one, rather than only what is true now. |
+
+Everything else — reports, metrics, campaign, keyword and search-term rows, AI commentary — stays
+in process memory and is cleared on restart.
+
+The scan history stores the **verdict only**. It does not store the prose reason behind a verdict,
+because that reason quotes the account's own spend and conversion figures ("spend fell from £1,200
+to £300"), and keeping it would put client performance data on disk through the back door. A
+verdict transition is enough to say an account needs a look; the figures are re-read live when
+someone opens it.
+
+### Where it lives
+
+SQLite by default, in a single file under the user's local application data — outside the
+repository, so it cannot be committed:
+
+| Platform | Path |
+|---|---|
+| Linux | `~/.local/share/MsAdsAuditor/msads-auditor.db` |
+| macOS | `~/Library/Application Support/MsAdsAuditor/msads-auditor.db` |
+| Windows | `%LOCALAPPDATA%\MsAdsAuditor\msads-auditor.db` |
+
+A backup is a file copy. There is no server to run, administer or pay for, which suits a
+single-machine deployment.
+
+### Configuration
+
+```jsonc
+{
+  "Auditor": {
+    "Persistence": {
+      "Provider": "Sqlite",          // Sqlite (default) | Postgres | None
+      "ConnectionString": null,       // unset for SQLite; required for Postgres
+      "MigrateOnStartup": true,       // apply outstanding migrations when the app starts
+      "ChangeLogLimit": 0,            // 0 = keep everything, which is right for an audit trail
+      "ScanHistoryLimit": 500
+    }
+  }
+}
+```
+
+Set `Provider` to `None` to run with nothing written to disk at all, which is the behaviour the
+application had before persistence existed. The change log then lives only for the session.
+
+### A note on PostgreSQL
+
+`Provider: Postgres` is recognised and the Npgsql provider is referenced, but **selecting it
+currently throws on startup**, deliberately. EF Core migrations contain provider-specific SQL, and
+the migrations in `MsAds.Auditor.Data` are generated for SQLite. There is no PostgreSQL instance
+available to verify a second set against, and creating the schema from the model instead would
+leave a hosted database outside migration control — working until the first schema change, then
+with no upgrade path.
+
+PostgreSQL belongs with hosted deployment (ROADMAP.md Phase 27). When there is an instance to test
+against, generate its migrations into their own assembly:
+
+```bash
+dotnet ef migrations add InitialCreate \
+  --project src/MsAds.Auditor.Data \
+  --context AuditorDbContext \
+  --output-dir Migrations/Postgres \
+  -- --provider postgres
+```
+
+### Working with migrations
+
+```bash
+# Add one after changing the model
+dotnet ef migrations add <Name> --project src/MsAds.Auditor.Data \
+  --context AuditorDbContext -- --provider sqlite
+
+# Apply them by hand (MigrateOnStartup does this automatically)
+dotnet ef database update --project src/MsAds.Auditor.Data \
+  --context AuditorDbContext -- --provider sqlite
+
+# See the SQL without running it
+dotnet ef migrations script --project src/MsAds.Auditor.Data \
+  --context AuditorDbContext -- --provider sqlite
+```
+
+`dotnet ef` is pinned as a local tool, so `dotnet tool restore` is all that is needed to get it.
 
 ---
 

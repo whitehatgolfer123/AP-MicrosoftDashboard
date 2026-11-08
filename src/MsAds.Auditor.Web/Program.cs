@@ -9,6 +9,9 @@ using MsAds.Auditor.Core.Ai;
 using MsAds.Auditor.Core.Changes;
 using MsAds.Auditor.Core.Demo;
 using MsAds.Auditor.Core.DependencyInjection;
+using MsAds.Auditor.Core.Persistence;
+using MsAds.Auditor.Data;
+using MsAds.Auditor.Data.DependencyInjection;
 using MsAds.Auditor.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -96,7 +99,11 @@ var changeOptions = builder.Configuration.GetSection(ChangeOptions.SectionName).
                     ?? new ChangeOptions();
 
 builder.Services.AddSingleton(changeOptions);
-builder.Services.AddSingleton<IChangeLog>(new InMemoryChangeLog());
+// --- Durable records -------------------------------------------------------------------------
+// The change log, the operator's thresholds and portfolio scan verdicts. Client performance
+// data is deliberately NOT persisted — see AuditorDbContext — so reports, metrics and the
+// campaign, keyword and search term rows stay in memory and a restart clears them.
+builder.Services.AddAuditorData(builder.Configuration);
 builder.Services.AddSingleton<DemoChangeApplier>();
 builder.Services.AddSingleton<BingAdsChangeApplier>();
 
@@ -133,10 +140,26 @@ builder.Services.AddSingleton<AiNarratorSwitch>();
 builder.Services.AddSingleton<IAiNarrator>(provider =>
     provider.GetRequiredService<AiNarratorSwitch>());
 
+// Reports and AI commentary stay in memory by design: they hold client performance figures,
+// and the privacy decision is that those never reach the disk.
 builder.Services.AddSingleton<IReportStore, InMemoryReportStore>();
-builder.Services.AddSingleton<ISettingsStore, InMemorySettingsStore>();
 builder.Services.AddSingleton<IScanStore, InMemoryScanStore>();
 builder.Services.AddSingleton<INarrativeStore, InMemoryNarrativeStore>();
+
+// Thresholds are operator preferences rather than client data, so they are persisted where a
+// database is configured and fall back to configuration where it is not.
+var persistence = builder.Configuration
+    .GetSection(PersistenceOptions.SectionName)
+    .Get<PersistenceOptions>() ?? new PersistenceOptions();
+
+if (persistence.IsEnabled)
+{
+    builder.Services.AddSingleton<ISettingsStore, PersistentSettingsStore>();
+}
+else
+{
+    builder.Services.AddSingleton<ISettingsStore, InMemorySettingsStore>();
+}
 builder.Services.AddScoped<AuditService>();
 
 var app = builder.Build();
@@ -156,6 +179,17 @@ app.UseRouting();
 app.UseAppSignIn(signIn);
 app.UseSession();
 app.MapRazorPages();
+
+// Mapped after the sign-in middleware but marked anonymous, so a monitor can reach them without
+// a credential while every page behind them still requires one.
+app.MapHealthEndpoints();
+
+// Bring the database up to date and read any saved thresholds, before the first request is
+// served. Done here rather than in a hosted service so a database that cannot be written to
+// stops start-up: an operator needs to know the change log is unavailable before someone
+// applies a change, not afterwards.
+await PersistenceInitializer.InitialiseAsync(app.Services);
+await app.Services.GetRequiredService<ISettingsStore>().LoadAsync();
 
 // Report the operating mode once at startup, so which data is being shown is never a surprise.
 var auditorOptions = app.Services.GetRequiredService<IOptions<AuditorOptions>>().Value;
@@ -227,4 +261,4 @@ if (auditorOptions.Mode == AuditorMode.Live)
     }
 }
 
-app.Run();
+await app.RunAsync();

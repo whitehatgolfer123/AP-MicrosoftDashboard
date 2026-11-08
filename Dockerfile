@@ -57,6 +57,12 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false \
     ASPNETCORE_URLS=http://+:8080 \
     ASPNETCORE_ENVIRONMENT=Production
 
+# The SQLite file is written here. Created and chowned before dropping privileges,
+# because a volume mounted over it would otherwise be owned by root and the
+# non-root app user could not write the change log.
+RUN mkdir -p /data && chown -R $APP_UID:$APP_UID /data
+VOLUME /data
+
 # Run as the non-root user the base image already provides.
 USER $APP_UID
 

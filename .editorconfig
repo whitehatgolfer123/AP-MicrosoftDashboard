@@ -163,3 +163,19 @@ dotnet_diagnostic.CA1849.severity = warning  # don't block in an async method
 # Test doubles are deliberately minimal and test names describe behaviour in prose.
 dotnet_diagnostic.CA1812.severity = none
 dotnet_diagnostic.CA1861.severity = none
+
+# ----------------------------------------------------------------------------
+# Generated code.
+#
+# EF Core writes the migration and snapshot files, and regenerating one would
+# undo any hand-formatting. They are excluded from style enforcement rather
+# than reformatted, so `dotnet format` stays idempotent across a
+# `dotnet ef migrations add`.
+# ----------------------------------------------------------------------------
+[src/MsAds.Auditor.Data/Migrations/**.cs]
+generated_code = true
+charset = unset
+dotnet_analyzer_diagnostic.severity = none
+dotnet_diagnostic.IDE0161.severity = none
+dotnet_diagnostic.IDE0005.severity = none
+dotnet_diagnostic.IDE1006.severity = none

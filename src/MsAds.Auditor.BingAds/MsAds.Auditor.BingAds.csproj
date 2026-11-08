@@ -5,7 +5,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.BingAds.SDK" Version="13.0.30" />
+    <PackageReference Include="Microsoft.BingAds.SDK" />
   </ItemGroup>
 
   <ItemGroup>

@@ -12,6 +12,7 @@ using MsAds.Auditor.Core.DependencyInjection;
 using MsAds.Auditor.Core.Persistence;
 using MsAds.Auditor.Data;
 using MsAds.Auditor.Data.DependencyInjection;
+using MsAds.Auditor.Reporting.DependencyInjection;
 using MsAds.Auditor.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -104,6 +105,10 @@ builder.Services.AddSingleton(changeOptions);
 // data is deliberately NOT persisted — see AuditorDbContext — so reports, metrics and the
 // campaign, keyword and search term rows stay in memory and a restart clears them.
 builder.Services.AddAuditorData(builder.Configuration);
+
+// Downloadable artefacts: the PDF renderer and the brand values it draws with. The content model
+// it renders lives in Core, so a PDF and the dashboard cannot disagree about a figure.
+builder.Services.AddAuditorReporting(builder.Configuration);
 builder.Services.AddSingleton<DemoChangeApplier>();
 builder.Services.AddSingleton<BingAdsChangeApplier>();
 

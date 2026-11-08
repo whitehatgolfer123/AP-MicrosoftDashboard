@@ -189,6 +189,17 @@ select:focus-visible, summary:focus-visible, [tabindex]:focus-visible, th button
 .card__body--flush { padding: 0; }
 .card__note { font-size: .78rem; color: var(--text-muted); margin: .25rem 0 0; }
 
+/* Groups the download buttons: PDF reports and CSV data are different kinds of thing and a
+   single undifferentiated row of buttons made that hard to see. */
+.card__subhead {
+    font-size: .72rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    margin: 0 0 .4rem;
+}
+
 /* Metric definitions run to one, two or three lines. Reserving the tallest keeps the plot
    areas of adjacent charts on the same baseline instead of stepping up and down the row. */
 /* Three lines at this size: the longest definition in the catalogue. */

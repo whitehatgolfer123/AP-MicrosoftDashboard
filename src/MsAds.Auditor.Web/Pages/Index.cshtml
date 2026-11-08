@@ -297,12 +297,27 @@ else
         </div>
 
         <div class="card">
-            <div class="card__head"><h2>Export</h2></div>
+            <div class="card__head"><h2>Download</h2></div>
             <div class="card__body">
                 <p class="card__note" style="margin-bottom:.6rem">
-                    Each export records the account, the exact reporting dates and the currency, and is clearly
-                    marked when it contains demo data.
+                    Every download records the account, the exact reporting dates and the currency, and is
+                    clearly marked when it contains demo data.
                 </p>
+
+                <h3 class="card__subhead">Reports (PDF)</h3>
+                <div class="toolbar">
+                    @foreach (var (key, label, description) in AuditDocumentBuilder.Available)
+                    {
+                        <a class="btn btn--secondary btn--small"
+                           asp-page="/Export" asp-page-handler="Document"
+                           asp-route-report="@report.ReportId" asp-route-artefact="@key"
+                           title="@description">
+                            <span aria-hidden="true">⤓</span> @label
+                        </a>
+                    }
+                </div>
+
+                <h3 class="card__subhead" style="margin-top:.9rem">Data (CSV)</h3>
                 <div class="toolbar">
                     @foreach (var (key, label) in ReportCsvExporter.Available)
                     {

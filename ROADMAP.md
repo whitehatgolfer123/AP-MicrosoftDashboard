@@ -75,7 +75,7 @@ were not. Where a phase is partly delivered it now says so, with the gap named. 
 | 20 | Separate staff and client sign-in flows | Planned |
 | 21 | Microsoft 365/Dataverse account metadata integration | Planned |
 | 22 | Daily, approver-gated AI strategist | Planned |
-| 23 | Downloadable account and portfolio audit artefacts | Planned |
+| 23 | Downloadable account and portfolio audit artefacts | Account PDFs done; portfolio PDF left |
 | 23b | Product naming, subscription stages, and usage controls | Planned |
 | 24 | Approvals-first staff UI and role hardening | Planned |
 | 25 | Client portal experience upgrade | Planned |
@@ -366,7 +366,7 @@ Implement these in Microsoft Advertising terms and behind shared contracts:
 - Keep new proposal types disabled until covered by policy, tests, guardrails, and live validation.
 - Require an approver who is independent of the proposing identity for high-risk changes.
 
-## Phase 23 — Downloadable audit artefacts
+## Phase 23 — Downloadable audit artefacts — Account PDFs done
 
 - Provide CSV, executive PDF, account PDF, and portfolio PDF exports.
 - Render PDF from one shared content model rather than duplicating dashboard text or calculations.

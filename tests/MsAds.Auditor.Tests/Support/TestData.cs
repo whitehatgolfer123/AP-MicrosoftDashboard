@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsAds.Auditor.Core.Abstractions;
 using MsAds.Auditor.Core.Analysis;
+using MsAds.Auditor.Core.Demo;
 using MsAds.Auditor.Core.DependencyInjection;
 using MsAds.Auditor.Core.Metrics;
 using MsAds.Auditor.Core.Models;
@@ -125,4 +126,28 @@ internal static class TestData
             new ExecutiveSummaryGenerator(),
             clock ?? new FixedClock(FixedNow),
             NullLogger<AuditReportBuilder>.Instance);
+
+    /// <summary>
+    /// A complete audit built from the demo data source, for tests that need a realistic report
+    /// rather than a hand-assembled one — the artefact renderers in particular, which have to
+    /// cope with every section being populated.
+    /// </summary>
+    /// <remarks>
+    /// Deterministic: the demo source is seeded, and the clock is fixed, so the same report comes
+    /// back every run.
+    /// </remarks>
+    public static AuditReport DemoReport(
+        ReportingPeriod period = ReportingPeriod.Last30Days,
+        AuditSettings? settings = null)
+    {
+        var clock = new FixedClock(FixedNow);
+        var source = new DemoDataSource(clock);
+
+        return Builder(clock).BuildAsync(
+            source,
+            DemoAccounts.Primary,
+            new ReportingPeriodResolver(clock).Resolve(period, TimeZoneInfo.Utc),
+            settings ?? new AuditSettings(),
+            AnalysisSelection.All).GetAwaiter().GetResult();
+    }
 }

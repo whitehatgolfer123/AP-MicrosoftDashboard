@@ -537,6 +537,59 @@ dotnet ef migrations script --project src/MsAds.Auditor.Data \
 
 ---
 
+## Downloadable reports
+
+Two PDFs per audit, alongside the CSV exports:
+
+| Artefact | What it is |
+|---|---|
+| Executive summary | The verdict, the headline figures and the material findings. A few pages, suitable for forwarding. |
+| Full account audit | The above plus the campaign, keyword, search-term and change-history detail. |
+
+Both are rendered from the same content model as the dashboard (`Core/Reports/Documents`), so a
+PDF and the screen cannot show different numbers for the same account. The renderer makes no
+content decisions; it only decides how to draw a heading or a table.
+
+Every page carries its provenance — account, manager id, period, comparison period, time zone,
+currency, data source, reconciliation state and generated time — plus a methodology note. A
+printed page outlives the screen it came from and will be read by someone who was not there.
+
+**Demo data is marked three times over**: a banner on the face of the document, a line in the
+footer of every page, and the PDF's own metadata, plus `-DEMO` in the filename. A demo PDF
+reaching a client unlabelled is the worst thing this feature could do.
+
+### Branding
+
+Brand values live in `Auditor:Brand`, defaulting to the palette in the `:root` block of
+`wwwroot/css/site.css`. A PDF cannot read CSS, so the palette is necessarily stated twice — and a
+test parses the stylesheet and fails if the two disagree, so changing a brand colour in one place
+without the other breaks the build rather than quietly producing a PDF in last year's colours.
+
+### Why PdfSharpCore
+
+| Library | Licence | Verdict |
+|---|---|---|
+| **PdfSharpCore 1.3.67** | MIT | **Chosen.** Free unconditionally. Lower-level, so layout and pagination are hand-rolled. |
+| QuestPDF | Community licence needs annual gross revenue under USD 1,000,000 | Better output, but production use above the threshold requires payment. |
+| PDFsharp 6.x | AGPL-3.0-only | Copyleft with a network clause — unsuitable for an application served over a network. |
+
+PdfSharpCore depends on SixLabors.ImageSharp, whose 2.1.x line carries advisories with no
+Apache-2.0 fix (the fixes are in ImageSharp 3, which moved to a licence with the same revenue
+threshold). Every one of those advisories is in an image decoder, and these documents draw no
+images, so the vulnerable code is unreachable. The advisories are suppressed in the project files
+with that reasoning written out, and a test asserts no image API is used — so if a logo is ever
+added, the suppression's justification stops being true and the build fails rather than the
+suppression quietly covering a now-reachable vulnerability.
+
+### Fonts
+
+PdfSharpCore has no fonts of its own and embeds one from the host. DejaVu is preferred, then
+Liberation, then FreeSans — wide script coverage matters because search terms arrive in whatever
+the searcher typed. The Dockerfile installs `fonts-dejavu-core`. Where no font is found, PDF
+export reports that clearly and CSV export is unaffected; the application still starts.
+
+---
+
 ## Scheduled scans
 
 A portfolio scan can run unattended, so the tool tells you when to look rather than waiting to be

@@ -44,11 +44,13 @@ RUN dotnet publish src/MsAds.Auditor.Web \
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 WORKDIR /app
 
-# curl is not in the aspnet image, and HEALTHCHECK without it fails silently
-# rather than loudly. Installed as root before dropping to the app user.
+# curl is not in the aspnet image, and HEALTHCHECK without it fails silently rather
+# than loudly. fonts-dejavu-core is what PdfSharpCore embeds in a PDF: with no font
+# installed, PDF export reports itself unavailable and only CSV works. DejaVu rather
+# than a narrower face because search terms arrive in whatever script was typed.
 USER root
 RUN apt-get update \
-    && apt-get install --no-install-recommends -y curl \
+    && apt-get install --no-install-recommends -y curl fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
 # Culture data is needed: money and dates are formatted per account culture by

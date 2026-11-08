@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
     <ProjectReference Include="..\MsAds.Auditor.Core\MsAds.Auditor.Core.csproj" />
@@ -7,12 +7,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.BingAds.SDK" Version="13.0.30" />
   </ItemGroup>
-
-  <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
-    <ImplicitUsings>enable</ImplicitUsings>
-    <Nullable>enable</Nullable>
-  </PropertyGroup>
 
   <ItemGroup>
     <!-- Data Protection is used to encrypt the stored refresh token. Taken from the shared

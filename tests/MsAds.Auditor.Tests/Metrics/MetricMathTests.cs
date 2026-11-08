@@ -63,6 +63,14 @@ public class MetricMathTests
     [InlineData(10, 5, ChangeKind.Increase)]
     [InlineData(5, 10, ChangeKind.Decrease)]
     [InlineData(5, 5, ChangeKind.NoChange)]
+    // Negatives: only a positive current value against a zero previous one is NewActivity, and
+    // only a zero current value against a positive previous one is CeasedActivity. Everything
+    // else falls through to the plain comparison, so a move to a negative value is a Decrease
+    // rather than a cessation.
+    [InlineData(-5, 0, ChangeKind.Decrease)]
+    [InlineData(0, -5, ChangeKind.Increase)]
+    [InlineData(-5, -10, ChangeKind.Increase)]
+    [InlineData(-10, -5, ChangeKind.Decrease)]
     public void Classify_separates_the_cases_a_percentage_cannot_express(
         double current, double previous, ChangeKind expected)
         => Assert.Equal(expected, MetricMath.Classify((decimal)current, (decimal)previous));

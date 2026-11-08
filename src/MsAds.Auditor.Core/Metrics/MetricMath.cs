@@ -59,11 +59,17 @@ public static class MetricMath
             return ChangeKind.NotComparable;
         }
 
+        // Written as guards throughout rather than mixing tuple patterns with guards. A leading
+        // relational pattern inside a tuple — `(> 0m, 0m)` — is reformatted by the Roslyn
+        // formatter to `( > 0m, 0m)`, which no one writes by hand, so the uniform form both
+        // reads consistently and survives `dotnet format`. The cases are unchanged: growth from
+        // zero and a fall to zero are named rather than expressed as a percentage, and a
+        // negative current value against a zero previous one stays a Decrease.
         return (current.Value, previous.Value) switch
         {
-            (0m, 0m) => ChangeKind.NoChange,
-            (> 0m, 0m) => ChangeKind.NewActivity,
-            (0m, > 0m) => ChangeKind.CeasedActivity,
+            var (c, p) when c == 0m && p == 0m => ChangeKind.NoChange,
+            var (c, p) when c > 0m && p == 0m => ChangeKind.NewActivity,
+            var (c, p) when c == 0m && p > 0m => ChangeKind.CeasedActivity,
             var (c, p) when c > p => ChangeKind.Increase,
             var (c, p) when c < p => ChangeKind.Decrease,
             _ => ChangeKind.NoChange,

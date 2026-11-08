@@ -1,0 +1,24 @@
+# Keep the build context small and never copy local state or secrets into an image.
+**/bin/
+**/obj/
+**/.vs/
+**/.vscode/
+**/.idea/
+.git/
+.github/
+artifacts/
+
+# Credentials and local overrides — these must never reach an image layer.
+**/secrets.json
+**/*.pfx
+**/*.pem
+.env
+.env.*
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+
+# Docs and scratch
+*.md
+!README.md
+.DS_Store
+Thumbs.db

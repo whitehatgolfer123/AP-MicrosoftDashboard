@@ -206,13 +206,13 @@ public sealed class BingAdsChangeApplier(
 
     private ChangeRunResult Result(
         IReadOnlyList<ChangeOutcome> outcomes, long accountId, string? requestedBy, bool preview) => new()
-    {
-        RunId = Guid.NewGuid(),
-        RanAt = clock.UtcNow,
-        RanBy = requestedBy,
-        AccountId = accountId,
-        AccountName = $"Account {accountId}",
-        WasPreview = preview,
-        Outcomes = outcomes,
-    };
+        {
+            RunId = Guid.NewGuid(),
+            RanAt = clock.UtcNow,
+            RanBy = requestedBy,
+            AccountId = accountId,
+            AccountName = $"Account {accountId}",
+            WasPreview = preview,
+            Outcomes = outcomes,
+        };
 }

@@ -1,0 +1,165 @@
+# ============================================================================
+# Code style for the Microsoft Ads Optimisation Platform.
+#
+# These rules describe the style the existing code already follows, so that
+# `dotnet format --verify-no-changes` has something to enforce and a new
+# contributor's editor agrees with the repository. Phase 0 of ROADMAP.md asks
+# for formatting checks; this is the ruleset behind them.
+# ============================================================================
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+indent_style = space
+indent_size = 4
+insert_final_newline = true
+trim_trailing_whitespace = true
+max_line_length = 110
+
+[*.{json,yml,yaml}]
+indent_size = 2
+
+[*.{csproj,props,targets,slnx}]
+indent_size = 2
+
+[*.{md,markdown}]
+# Trailing whitespace is a hard line break in Markdown.
+trim_trailing_whitespace = false
+
+[*.{cs,cshtml}]
+indent_size = 4
+
+[*.cs]
+# --- using directives ---------------------------------------------------------
+dotnet_sort_system_directives_first = true
+dotnet_separate_import_directive_groups = false
+csharp_using_directive_placement = outside_namespace:warning
+
+# --- modern language features the codebase already uses -----------------------
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = when_on_single_line:suggestion
+csharp_style_expression_bodied_accessors = when_on_single_line:suggestion
+csharp_style_prefer_primary_constructors = true:suggestion
+csharp_style_implicit_object_creation_when_type_is_apparent = true:suggestion
+csharp_style_prefer_collection_expression = when_types_loosely_match:suggestion
+csharp_prefer_braces = true:suggestion
+csharp_style_prefer_pattern_matching = true:suggestion
+csharp_style_prefer_switch_expression = true:suggestion
+csharp_style_throw_expression = true:suggestion
+csharp_style_prefer_null_check_over_type_check = true:suggestion
+
+# `var` only where the type is already plain from the right-hand side.
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_var_elsewhere = false:suggestion
+
+# --- immutability, which the domain records rely on ---------------------------
+dotnet_style_readonly_field = true:warning
+csharp_prefer_readonly_struct = true:suggestion
+dotnet_style_prefer_auto_properties = true:suggestion
+
+# --- qualification ------------------------------------------------------------
+dotnet_style_qualification_for_field = false:warning
+dotnet_style_qualification_for_property = false:warning
+dotnet_style_qualification_for_method = false:warning
+dotnet_style_qualification_for_event = false:warning
+dotnet_style_predefined_type_for_locals_parameters_members = true:warning
+dotnet_style_predefined_type_for_member_access = true:warning
+
+# --- new lines ----------------------------------------------------------------
+csharp_new_line_before_open_brace = all
+csharp_new_line_before_else = true
+csharp_new_line_before_catch = true
+csharp_new_line_before_finally = true
+csharp_new_line_before_members_in_object_initializers = true
+csharp_new_line_between_query_expression_clauses = true
+
+# --- indentation --------------------------------------------------------------
+csharp_indent_case_contents = true
+csharp_indent_switch_labels = true
+csharp_indent_labels = one_less_than_current
+csharp_indent_block_contents = true
+csharp_indent_case_contents_when_block = false
+
+# --- spacing ------------------------------------------------------------------
+csharp_space_after_cast = false
+csharp_space_after_keywords_in_control_flow_statements = true
+csharp_space_between_method_declaration_parameter_list_parentheses = false
+csharp_space_between_method_call_parameter_list_parentheses = false
+csharp_space_between_parentheses = false
+csharp_space_around_binary_operators = before_and_after
+
+# --- wrapping -----------------------------------------------------------------
+# Single-line statements are preserved rather than split. AuditSettings.Validate
+# reads as a table of guard clauses (`if (MinimumSpend < 0m) errors.Add(...)`),
+# one per line, and forcing each onto two lines would lose that.
+csharp_preserve_single_line_statements = true
+csharp_preserve_single_line_blocks = true
+
+# --- naming: interfaces are IPrefixed ----------------------------------------
+dotnet_naming_rule.interfaces_start_with_i.severity = warning
+dotnet_naming_rule.interfaces_start_with_i.symbols = interface_symbol
+dotnet_naming_rule.interfaces_start_with_i.style = prefix_i_style
+dotnet_naming_symbols.interface_symbol.applicable_kinds = interface
+dotnet_naming_style.prefix_i_style.required_prefix = I
+dotnet_naming_style.prefix_i_style.capitalization = pascal_case
+
+# --- naming: types and members are PascalCase --------------------------------
+dotnet_naming_rule.types_are_pascal_case.severity = warning
+dotnet_naming_rule.types_are_pascal_case.symbols = type_symbol
+dotnet_naming_rule.types_are_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.type_symbol.applicable_kinds = class,struct,enum,delegate
+dotnet_naming_style.pascal_case_style.capitalization = pascal_case
+
+dotnet_naming_rule.members_are_pascal_case.severity = warning
+dotnet_naming_rule.members_are_pascal_case.symbols = member_symbol
+dotnet_naming_rule.members_are_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.member_symbol.applicable_kinds = property,method,event
+dotnet_naming_symbols.member_symbol.applicable_accessibilities = public,protected,protected_internal
+
+# --- naming: fields -----------------------------------------------------------
+# Order matters: the first matching rule wins, so the two PascalCase exemptions
+# must precede the general private-field rule. The codebase convention is the
+# standard .NET one — constants and static readonly tables are PascalCase
+# (HealthAssessor.ScanMetrics, TrendChart.PlotWidth, CsvWriter.MustQuote),
+# while mutable instance state is _camelCase.
+dotnet_naming_rule.const_fields_are_pascal_case.severity = warning
+dotnet_naming_rule.const_fields_are_pascal_case.symbols = const_field_symbol
+dotnet_naming_rule.const_fields_are_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.const_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.const_field_symbol.required_modifiers = const
+
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.severity = warning
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.symbols = static_readonly_field_symbol
+dotnet_naming_rule.static_readonly_fields_are_pascal_case.style = pascal_case_style
+dotnet_naming_symbols.static_readonly_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.static_readonly_field_symbol.required_modifiers = static,readonly
+
+dotnet_naming_rule.private_fields_underscored.severity = warning
+dotnet_naming_rule.private_fields_underscored.symbols = private_field_symbol
+dotnet_naming_rule.private_fields_underscored.style = underscore_camel_style
+dotnet_naming_symbols.private_field_symbol.applicable_kinds = field
+dotnet_naming_symbols.private_field_symbol.applicable_accessibilities = private
+dotnet_naming_style.underscore_camel_style.required_prefix = _
+dotnet_naming_style.underscore_camel_style.capitalization = camel_case
+
+# --- analyzer severities ------------------------------------------------------
+# Globalisation: the application formats money and dates per account culture
+# deliberately, through MetricFormatter, so the blanket "always pass
+# CultureInfo" rules would fire on correct code.
+dotnet_diagnostic.CA1303.severity = none  # literal strings are user-facing copy, not resources
+dotnet_diagnostic.CA1707.severity = none  # test method names use underscores on purpose
+dotnet_diagnostic.CA2007.severity = none  # no ConfigureAwait in an app (no sync context)
+dotnet_diagnostic.CA1062.severity = none  # nullable reference types already cover this
+
+# Correctness rules worth keeping loud.
+dotnet_diagnostic.CA2016.severity = warning  # forward the CancellationToken
+dotnet_diagnostic.CA1849.severity = warning  # don't block in an async method
+
+[tests/**/*.cs]
+# Test doubles are deliberately minimal and test names describe behaviour in prose.
+dotnet_diagnostic.CA1812.severity = none
+dotnet_diagnostic.CA1861.severity = none

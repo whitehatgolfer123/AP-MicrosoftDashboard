@@ -1,0 +1,81 @@
+# ============================================================================
+# Secret-scanning configuration.
+#
+# Extends the bundled default ruleset (which already covers Azure, AWS, GitHub,
+# Slack, generic API keys and private keys) and adds the credentials specific
+# to this application. Phase 0 of ROADMAP.md asks for secret-scanning checks;
+# Phase 26 keeps them as a release gate.
+#
+# Run locally before pushing:
+#   gitleaks git . --config .gitleaks.toml --redact --verbose
+# ============================================================================
+
+title = "Microsoft Ads Optimisation Platform"
+
+[extend]
+useDefault = true
+
+# --- Microsoft Advertising developer token ----------------------------------
+# A real token is 13 uppercase alphanumeric characters assigned by Microsoft.
+# The sandbox token BBD37VB98 is public and documented, so it is allowed below.
+[[rules]]
+id = "microsoft-advertising-developer-token"
+description = "Microsoft Advertising developer token"
+regex = '''(?i)(developer[_-]?token)["'\s:=]{1,10}([A-Z0-9]{13})\b'''
+secretGroup = 2
+keywords = ["developertoken", "developer_token", "developer-token"]
+
+# --- Entra ID / app registration client secret ------------------------------
+# Entra client secrets are ~40 chars and conventionally contain a '~'.
+[[rules]]
+id = "entra-client-secret"
+description = "Microsoft Entra ID application client secret"
+regex = '''(?i)(client[_-]?secret)["'\s:=]{1,10}([A-Za-z0-9._~-]{32,60})'''
+secretGroup = 2
+keywords = ["clientsecret", "client_secret", "client-secret"]
+
+# --- AI provider keys -------------------------------------------------------
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[A-Za-z0-9_-]{20,}'''
+keywords = ["sk-ant-"]
+
+[[rules]]
+id = "openai-api-key"
+description = "OpenAI API key"
+regex = '''sk-(?:proj-)?[A-Za-z0-9_-]{32,}'''
+keywords = ["sk-"]
+
+# --- Microsoft Advertising refresh token ------------------------------------
+[[rules]]
+id = "msads-refresh-token"
+description = "Microsoft Advertising OAuth refresh token"
+regex = '''(?i)(refresh[_-]?token)["'\s:=]{1,10}([A-Za-z0-9._~-]{40,})'''
+secretGroup = 2
+keywords = ["refreshtoken", "refresh_token", "refresh-token"]
+
+[allowlist]
+description = "Values that look like credentials but are not"
+
+paths = [
+  # Third-party JavaScript carries hashes and minified blobs that trip the
+  # generic high-entropy rules.
+  '''src/MsAds\.Auditor\.Web/wwwroot/lib/.*''',
+  # Build output, if it is ever scanned from a dirty tree.
+  '''.*/(bin|obj)/.*''',
+]
+
+regexes = [
+  # The public Microsoft Advertising sandbox developer token. Documented by
+  # Microsoft, identical for everyone, and grants nothing on its own — the
+  # README and ROADMAP both name it deliberately.
+  '''BBD37VB98''',
+  # The user-secrets id in the web .csproj is an identifier, not a secret: it
+  # names a folder under ~/.microsoft/usersecrets and holds no value itself.
+  '''e5134c8d-8d17-4960-b6b4-038bb7918ed0''',
+  # Deliberately invalid placeholders used in tests and documentation.
+  '''sk-not-a-real-key''',
+  '''local-development-only''',
+  '''(?i)(your|example|placeholder|changeme|xxx+|<[a-z-]+>)''',
+]

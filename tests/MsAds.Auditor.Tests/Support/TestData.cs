@@ -1,8 +1,8 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using MsAds.Auditor.Core.Abstractions;
-using MsAds.Auditor.Core.DependencyInjection;
 using MsAds.Auditor.Core.Analysis;
+using MsAds.Auditor.Core.DependencyInjection;
 using MsAds.Auditor.Core.Metrics;
 using MsAds.Auditor.Core.Models;
 using MsAds.Auditor.Core.Reports;

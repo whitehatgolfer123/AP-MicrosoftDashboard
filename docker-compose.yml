@@ -1,0 +1,67 @@
+# ============================================================================
+# Local development stack: the application plus a PostgreSQL instance.
+#
+# Phase 0 of ROADMAP.md asks for Docker Compose so PostgreSQL is available
+# locally without installing a server; Phase 1 and Phase 5 of the delivery
+# order use it for the change log, scheduled results and settings.
+#
+#   docker compose up --build        # app on http://localhost:5114
+#   docker compose up -d db          # just the database, app from ./start.sh
+#   docker compose down -v           # stop and delete the database volume
+#
+# NOTE ON THE DATABASE: the application's default persistence provider is
+# SQLite, which needs no server at all and is what a single-machine agency
+# deployment should use. PostgreSQL is here because the roadmap targets it for
+# hosted environments, and because testing against both providers is how the
+# EF Core layer stays genuinely provider-neutral. The credentials below are
+# local-only development values and are deliberately not secret.
+# ============================================================================
+
+name: msads-auditor
+
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: msads_auditor
+      POSTGRES_USER: msads
+      POSTGRES_PASSWORD: local-development-only
+      # Deterministic collation, so ordering does not vary by host locale.
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+    ports:
+      # Bound to loopback only: nothing on the network can reach the database.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U msads -d msads_auditor"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      target: final
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      # Demo mode by default — no credentials, synthetic figures, labelled as
+      # demo everywhere. Switch to Live only with real credentials supplied
+      # out of band (user secrets or the environment), never in this file.
+      Auditor__Mode: Demo
+      Auditor__Persistence__Provider: Postgres
+      Auditor__Persistence__ConnectionString: >-
+        Host=db;Port=5432;Database=msads_auditor;Username=msads;Password=local-development-only
+    ports:
+      # 5114 matches the registered OAuth redirect URI.
+      - "127.0.0.1:5114:8080"
+
+volumes:
+  db-data:

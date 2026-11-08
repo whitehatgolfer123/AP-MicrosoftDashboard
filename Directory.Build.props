@@ -1,0 +1,47 @@
+<Project>
+
+  <!-- ===========================================================================
+       Settings shared by every project in the solution.
+
+       Before this file existed each .csproj repeated TargetFramework, Nullable and
+       ImplicitUsings independently, so a new project could silently diverge from the
+       rest. They are set once here; individual projects override only what is
+       genuinely theirs (a UserSecretsId, IsPackable, and so on).
+       =========================================================================== -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <InvariantGlobalization>false</InvariantGlobalization>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Apply the .editorconfig style rules during build, so formatting drift is a
+         build message rather than something only a reviewer notices. CI runs the
+         build with -warnaserror, which turns these into failures there while
+         keeping a local build quiet enough to work in. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <AnalysisLevel>latest</AnalysisLevel>
+
+    <!-- Default rather than Recommended deliberately. Recommended turns on a large
+         set of micro-performance and interop rules (LoggerMessage delegates,
+         reserved-keyword member names, culture-aware string comparison on every
+         call) that would mean a wide mechanical refactor of correct code for no
+         benefit in an internal tool. The rules worth being loud about are raised
+         to warnings individually in .editorconfig. -->
+    <AnalysisMode>Default</AnalysisMode>
+
+    <!-- Deterministic output in CI, so the same source produces the same bytes. -->
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <!-- Documentation of intent rather than a published package: the assemblies are
+         deployed as an application, never pushed to a feed. -->
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+  </PropertyGroup>
+
+</Project>

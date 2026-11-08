@@ -102,10 +102,10 @@ public class AuthorizationUrlTests
     }
 
     [Fact]
-    public void Asking_for_data_before_anyone_has_connected_fails_with_a_clear_message()
+    public async Task Asking_for_data_before_anyone_has_connected_fails_with_a_clear_message()
     {
-        var exception = Assert.ThrowsAsync<BingAdsNotConnectedException>(
-            () => Service().GetAuthorizationDataAsync()).Result;
+        var exception = await Assert.ThrowsAsync<BingAdsNotConnectedException>(
+            () => Service().GetAuthorizationDataAsync());
 
         Assert.Contains("No Microsoft Advertising user is connected", exception.Message);
     }

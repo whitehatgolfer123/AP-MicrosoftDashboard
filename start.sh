@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Run the Microsoft Ads Performance Auditor locally.
+# Run the Microsoft Ads Optimisation Platform locally.
 #
 #   ./start.sh            # run the web app on http://localhost:5114
 #   ./start.sh test       # run the test suite
 #   ./start.sh build      # restore and build only
+#   ./start.sh format     # apply .editorconfig formatting
+#   ./start.sh check      # everything CI checks: build, test and format
 #
 # Port 5114 matches the registered OAuth redirect URI
 # (http://localhost:5114/signin-microsoftads). Override with PORT=xxxx.
@@ -33,6 +35,24 @@ case "$command" in
     test)
         dotnet test
         ;;
+    format)
+        dotnet format
+        ;;
+    check)
+        # The same three gates as .github/workflows/ci.yml, so a failure here is a
+        # failure there. -warnaserror is applied in CI rather than in
+        # Directory.Build.props, so it has to be repeated here to match.
+        echo "--- build (warnings fatal)"
+        dotnet build -warnaserror
+        echo
+        echo "--- test"
+        dotnet test --no-build
+        echo
+        echo "--- format"
+        dotnet format --verify-no-changes
+        echo
+        echo "All checks passed."
+        ;;
     run)
         dotnet build
         echo
@@ -42,7 +62,8 @@ case "$command" in
             --urls "http://localhost:${PORT}"
         ;;
     *)
-        echo "Unknown command: $command (expected run, build or test)" >&2
+        echo "Unknown command: $command" >&2
+        echo "Expected one of: run, build, test, format, check." >&2
         exit 1
         ;;
 esac

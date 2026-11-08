@@ -1,10 +1,10 @@
 using Microsoft.Extensions.Options;
+using MsAds.Auditor.Ai;
 using MsAds.Auditor.BingAds;
 using MsAds.Auditor.BingAds.Authentication;
 using MsAds.Auditor.BingAds.CampaignManagement;
 using MsAds.Auditor.BingAds.Reporting;
 using MsAds.Auditor.Core.Abstractions;
-using MsAds.Auditor.Ai;
 using MsAds.Auditor.Core.Ai;
 using MsAds.Auditor.Core.Changes;
 using MsAds.Auditor.Core.Demo;

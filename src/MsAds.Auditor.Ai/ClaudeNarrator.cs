@@ -76,7 +76,7 @@ public sealed class ClaudeNarrator(
                             "Here is the completed audit. Write the commentary.\n\n" + brief,
                     },
                 ],
-            }).WaitAsync(cancellationToken).ConfigureAwait(false);
+            }, cancellationToken).ConfigureAwait(false);
 
             stopwatch.Stop();
 

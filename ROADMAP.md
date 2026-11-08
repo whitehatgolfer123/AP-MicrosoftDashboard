@@ -46,16 +46,20 @@ added, the Microsoft Advertising/Bing Ads SDK, and a provider-neutral optimisati
 
 ## At a glance
 
+States below were re-checked against the code on 8 November 2026, and several phases marked Done
+were not. Where a phase is partly delivered it now says so, with the gap named. See
+*Verification notes* at the end of this document.
+
 | Phase | Outcome | State |
 |---|---|---|
 | 0 | Foundations and local environment | Done |
-| 1 | Data model and CSV/export ingestion | Done |
-| 2 | Entra ID authentication and staff allow-list | Done |
+| 1 | Data model and CSV/export ingestion | Partly done — see notes |
+| 2 | Entra ID authentication and staff allow-list | Done, no roles beyond an allow-list |
 | 3 | Microsoft Ads rule engine and health scoring | Done |
 | 4 | Dashboard, account, campaign, keyword, and search-term views | Done |
 | 5 | Recommendations and provider-swappable AI commentary | Done |
-| 6 | Approvals and controlled Microsoft Advertising writes | Code complete |
-| 7 | Scheduled portfolio scans and job processing | Planned |
+| 6 | Approvals and controlled Microsoft Advertising writes | Code complete, never run live |
+| 7 | Scheduled portfolio scans and job processing | Done |
 | 8 | Client onboarding and managed script/export ingestion | Planned |
 | 9 | Conversion landing-page and tracking validation | Planned |
 | 10 | Hardening, observability, resilience, and recovery | Planned |
@@ -93,7 +97,7 @@ added, the Microsoft Advertising/Bing Ads SDK, and a provider-neutral optimisati
 **Microsoft implementation:** Keep the repository runbook operational on macOS, Windows, and Linux;
 prefer dev containers or Docker Compose for PostgreSQL; deploy from the same solution to Azure.
 
-## Phase 1 — Data model and ingestion — Done
+## Phase 1 — Data model and ingestion — Partly done
 
 - Model clients, Microsoft Advertising accounts, audit runs, metrics, recommendations, changes, and users.
 - Add EF Core and PostgreSQL migrations.
@@ -176,7 +180,7 @@ Microsoft Advertising has a direct write path; controls must be stronger than si
   expected state.
 - Do not enable write operations until reporting is reconciled against live Microsoft UI totals.
 
-## Phase 7 — Scheduling and Microsoft-native job processing
+## Phase 7 — Scheduling and Microsoft-native job processing — Done
 
 - Add hosted schedules for account health, portfolio health, and required-data checks.
 - Use Hangfire on PostgreSQL initially when local or on-premises operation matters.
@@ -457,3 +461,110 @@ The platform is complete when:
 - Microsoft data can be scheduled, exported, persisted, restored, and observed;
 - live writes are opt-in and reconciled; and
 - the application can be rebuilt, deployed, monitored, backed up, and operated in Azure.
+
+---
+
+## Verification notes
+
+Added 8 November 2026, after checking each phase's bullets against the code rather than against
+the status table. Recorded here so the same ground is not re-covered.
+
+### What was marked Done but was not
+
+**Phase 0.** Three of six bullets had never been delivered: there was no CI configuration of any
+kind (no `.github/`, and `git log --diff-filter=A` confirmed there never had been), no container
+definition, and no formatting or secret-scanning checks. Nor was there a `Directory.Build.props`,
+so all five projects repeated `TargetFramework`, `Nullable` and `ImplicitUsings` independently.
+All now exist. PostgreSQL for local development is available through `docker-compose.yml` behind a
+`postgres` profile, but see the note on providers below.
+
+**Phase 1.** "Add EF Core and PostgreSQL migrations" was marked Done with no EF Core, no Npgsql
+and no migrations anywhere in the solution — every store was in-memory and a restart cleared it.
+Persistence now exists for the change log, the analysis thresholds and portfolio scan verdicts. The
+rest of Phase 1 is genuinely done: metrics are derived rather than stored, impression-weighted
+percentages are never summed, unavailable values stay null, `IAdDataSource` is in place as
+`IAdsDataSource`, and periods resolve in each account's own time zone.
+
+What Phase 1 still does *not* have, and what "Partly done" refers to:
+
+- No client, user or audit-run entities. The data model covers what must survive a restart, not
+  the full relational model the phase describes; the rest has no consumer yet.
+- CSV **export** is complete; CSV and spreadsheet **ingestion** does not exist. Phase 8 owns it.
+
+**Phase 2.** Entra sign-in, tenant restriction and the allow-list all work. But there are no
+application roles: no Administrator, Reviewer, Operator or Client, and therefore nothing yet
+separating "may view" from "may approve a change". Phases 20 and 24 own that, and until then the
+Phase 2 bullet about separating application roles from advertising-account permissions is
+aspirational rather than implemented.
+
+**Phase 6.** The gates, the per-item refusal and the change log are real and now durable. What the
+phase describes and the code does not have:
+
+- No lifecycle state machine. `ChangeStatus` is Previewed / Applied / Failed / Skipped; there is no
+  proposed, approved, rejected, queued or submitted state.
+- No approval separate from the person proposing. One person selects, reviews and confirms in a
+  single flow, and `ChangeRunResult` records who ran it but has no approver field.
+- No post-write reconciliation. Nothing re-reads the account to confirm Microsoft Advertising
+  shows the expected state.
+
+None of this is a blocker for the sandbox exercise, which tests whether a write lands at all, but
+all three are prerequisites for using the write path on a client account.
+
+### Persistence: what is stored, and what deliberately is not
+
+Only three things survive a restart — the change log, the analysis thresholds, and portfolio scan
+verdicts. Reports, metrics, campaign/keyword/search-term rows and AI commentary stay in memory, as
+they always have.
+
+The scan history stores the **verdict only**, not the prose reason behind it. That reason quotes the
+account's own spend and conversion figures, and storing it would put client performance data on
+disk through the back door. A verdict transition is enough to flag an account for attention.
+
+### Provider choice: SQLite, not PostgreSQL
+
+The *Confirmed Microsoft stack* section names EF Core with PostgreSQL. The implementation uses EF
+Core with **SQLite** as the working provider, for two reasons:
+
+1. There is no budget for paid services and no Azure subscription, so Azure Database for PostgreSQL
+   is not available. SQLite needs no server, costs nothing, and a backup is a file copy — which
+   suits the single machine this actually runs on.
+2. EF Core migrations contain provider-specific SQL. The migrations here are generated for SQLite,
+   and there is no PostgreSQL instance available to verify a second set against. Selecting
+   `Provider: Postgres` therefore throws on startup rather than creating a schema outside migration
+   control, which would work until the first schema change and then have no upgrade path.
+
+PostgreSQL remains the right target for a hosted deployment and belongs with Phase 27. The README
+records the command to generate its migrations.
+
+Two provider-specific faults were found and fixed while building this, both of which would only
+have appeared at runtime: SQLite refuses to order by a `DateTimeOffset` (instants are now stored as
+UTC ticks), and a `decimal` left to the provider default becomes a floating-point `REAL` that would
+round money (decimals are now mapped with explicit precision).
+
+### Scheduling: hosted service, not Hangfire
+
+Phase 7 names Hangfire on PostgreSQL as the starting point. Hangfire needs a PostgreSQL or SQL
+Server store, which this deployment does not have, and one weekly job on one machine does not need
+a job server. The phase's own wording — "ASP.NET Core hosted services now; Hangfire or Azure
+Functions as scale requires" — is what has been followed.
+
+### Azure-dependent phases
+
+Phases 10, 18, 21, 26 and 27 assume Azure resources (Key Vault, Container Apps, Blob Storage,
+Azure OpenAI, Application Insights) or a Microsoft 365 tenant with Graph mail permissions. None of
+those exist, and the no-budget constraint means they cannot be provisioned. Work on these phases
+can go as far as configuration, abstractions and deployment manifests; it cannot be exercised. Each
+should be treated as blocked rather than planned until there is a subscription.
+
+### Blocked on credentials
+
+Phases 12 and the live half of 6 need a Microsoft Advertising developer token and an Entra app
+registration, which are being arranged. The sandbox developer token `BBD37VB98` allows a dry run
+of the OAuth round trip and the report shapes before a production token is approved.
+
+One thing worth doing before that exercise: `BingAdsReportingDataSource` is the largest file in the
+integration project and only its one static time-zone helper is covered by tests. The parse layer
+beneath it is well covered, so the risk is concentrated in the submit / poll / download / unzip
+orchestration — which is exactly the part sandbox credentials will exercise first. Likewise
+`BingAdsChangeApplier`, the only code that mutates a live account, has no test coverage at all: the
+gating around it is proven, the sending is not.

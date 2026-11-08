@@ -162,6 +162,18 @@ else
 }
 builder.Services.AddScoped<AuditService>();
 
+// --- Scheduled scans -------------------------------------------------------------------------
+// The runner is shared by the Scan page and the background schedule, so an unattended scan takes
+// exactly the same path as one a person asked for.
+builder.Services
+    .AddOptions<ScheduleOptions>()
+    .Bind(builder.Configuration.GetSection(ScheduleOptions.SectionName))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+
+builder.Services.AddScoped<PortfolioScanRunner>();
+builder.Services.AddHostedService<ScheduledScanService>();
+
 var app = builder.Build();
 
 if (!app.Environment.IsDevelopment())

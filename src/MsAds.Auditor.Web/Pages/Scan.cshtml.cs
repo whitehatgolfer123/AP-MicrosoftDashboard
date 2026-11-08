@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using MsAds.Auditor.Core.Abstractions;
 using MsAds.Auditor.Core.Analysis;
 using MsAds.Auditor.Core.Models;
+using MsAds.Auditor.Core.Persistence;
 using MsAds.Auditor.Core.Time;
 using MsAds.Auditor.Web.Services;
 
@@ -15,9 +16,7 @@ namespace MsAds.Auditor.Web.Pages;
 /// </summary>
 public class ScanModel(
     IAccountDirectory accountDirectory,
-    PortfolioScanner scanner,
-    ReportingPeriodResolver periodResolver,
-    ISettingsStore settingsStore,
+    PortfolioScanRunner runner,
     IScanStore scanStore,
     IOptions<AuditorOptions> options,
     ILogger<ScanModel> logger) : PageModel
@@ -27,6 +26,12 @@ public class ScanModel(
     public IReadOnlyList<AdAccountInfo> AvailableAccounts { get; private set; } = [];
 
     public PortfolioScan? Scan => scanStore.Latest;
+
+    /// <summary>
+    /// Accounts whose verdict moved since the previous recorded scan, deteriorations first.
+    /// Empty when there is no earlier scan to compare against.
+    /// </summary>
+    public IReadOnlyList<VerdictChange> Changes { get; private set; } = [];
 
     public string? ErrorMessage { get; private set; }
 
@@ -62,24 +67,20 @@ public class ScanModel(
             return Page();
         }
 
-        try
-        {
-            // Dates are resolved once, from the first account's time zone, so every account in
-            // the scan covers the same calendar days and the comparison is like for like.
-            var timeZone = AccountTimeZoneResolver.Resolve(chosen[0].TimeZone);
-            var period = periodResolver.Resolve(Period, timeZone);
+        // The same runner the background schedule uses: it resolves the dates, applies the
+        // account concurrency limit, records the run and works out what has changed.
+        var outcome = await runner
+            .RunAsync(chosen, Period, ScanTrigger.Manual, cancellationToken)
+            .ConfigureAwait(false);
 
-            var scan = await scanner
-                .ScanAsync(chosen, period, settingsStore.Current, cancellationToken: cancellationToken)
-                .ConfigureAwait(false);
-
-            scanStore.Set(scan);
-        }
-        catch (Exception ex)
+        if (!outcome.Succeeded)
         {
-            logger.LogError(ex, "Portfolio scan failed");
-            ErrorMessage = "The scan could not be completed. The detail has been written to the application log.";
+            ErrorMessage = outcome.FailureMessage;
+            return Page();
         }
+
+        scanStore.Set(outcome.Scan!);
+        Changes = outcome.Changes;
 
         return Page();
     }

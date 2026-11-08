@@ -537,6 +537,54 @@ dotnet ef migrations script --project src/MsAds.Auditor.Data \
 
 ---
 
+## Scheduled scans
+
+A portfolio scan can run unattended, so the tool tells you when to look rather than waiting to be
+opened. **Off by default**: a scheduled scan calls the Microsoft Advertising API against every
+reachable client account without anyone asking it to, and it is pointless before live reporting is
+trusted, since scanning demo data tells nobody anything.
+
+```jsonc
+{
+  "Auditor": {
+    "Schedule": {
+      "Enabled": false,
+      "TimeOfDay": "07:00",        // local time, HH:mm
+      "Days": [ "Monday" ],         // omit for Monday only
+      "TimeZone": null,             // IANA or Windows id; null = this machine's zone
+      "Period": "Last7Days",
+      "MaxConcurrency": 4,          // accounts queried at once
+      "MaxRetries": 3,
+      "InitialRetrySeconds": 60,    // doubles each retry, up to MaxRetrySeconds
+      "MaxRetrySeconds": 900
+    }
+  }
+}
+```
+
+The schedule is expressed in a named time zone rather than UTC, so "07:00 on Monday" stays 07:00
+after the clocks change. The two awkward days a year are handled explicitly: a scheduled time that
+does not exist (the spring-forward gap) moves to the first valid instant rather than being skipped,
+and one that happens twice (the autumn overlap) runs once, at the earlier instant.
+
+**What it reports.** Only material events, per the roadmap: a scan that failed, or an account whose
+health verdict has got *worse* since the last scan. A weekly "nothing changed" message trains people
+to ignore the channel it arrives on. Delivery is to the application log for now — Microsoft Graph
+mail is Phase 18.
+
+**Retries.** A failed scan backs off exponentially and retries. A scan in which *every* account
+failed also counts as a failure worth retrying: the scanner catches each account's error separately
+so that one bad account cannot lose the sweep, which means an expired token or a throttled API
+otherwise produces a "successful" scan in which nothing was actually read. Whatever happens, the
+next scheduled run is computed afresh, so a run that exhausts its retries is left until next time
+rather than blocking the schedule.
+
+The schedule runs as an ASP.NET Core hosted service. The roadmap names Hangfire or Azure Functions
+"as scale requires"; Hangfire needs a PostgreSQL or SQL Server store, which this deployment does not
+have, and one weekly job on one machine does not need a job server.
+
+---
+
 ## Testing
 
 ```bash
